@@ -24,7 +24,7 @@ const GLchar* fragmentShaderSource =
 	"out vec4 color;\n"
 	"void main()\n"
 	"{\n"
-	"color = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+	"color = vec4(1.0f, 0.0f, 1.0f, 1.0f);\n"
 	"}\n\0"
 };
 
@@ -37,7 +37,7 @@ void CrearShader(void);
 
 int main() {
 	glfwInit();
-	//Verificación de compatibilidad 
+	//Verificaciï¿½n de compatibilidad 
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -50,7 +50,7 @@ int main() {
 
 	glfwGetFramebufferSize(window, &screenWidth, &screenHeight);
 
-	//Verificación de errores de creacion  ventana
+	//Verificaciï¿½n de errores de creacion  ventana
 	if (nullptr == window) 
 	{
 		std::cout << "Failed to create GLFW window" << std::endl;
@@ -62,7 +62,7 @@ int main() {
 	glfwMakeContextCurrent(window);
 	glewExperimental = GL_TRUE;
 
-	//Verificación de errores de inicialización de glew
+	//Verificaciï¿½n de errores de inicializaciï¿½n de glew
 
 	if (GLEW_OK != glewInit()) {
 		std::cout << "Failed to initialise GLEW" << std::endl;
@@ -148,7 +148,7 @@ void CrearShader()
 	glCompileShader(vertexShader);
 
 
-	// Verificamos los errores en tiempo de ejecución
+	// Verificamos los errores en tiempo de ejecuciï¿½n
 	GLint success;
 	GLchar infoLog[512];
 
@@ -169,7 +169,7 @@ void CrearShader()
 	glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
 	glCompileShader(fragmentShader);
 
-	// Verificamos los errores en tiempo de ejecución
+	// Verificamos los errores en tiempo de ejecuciï¿½n
 
 	glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
 
