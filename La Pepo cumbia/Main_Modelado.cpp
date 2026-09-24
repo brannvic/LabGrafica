@@ -153,7 +153,7 @@ int main() {
 
 		// 1. Dibujar el Tablero Rectangular
 		model = glm::mat4(1.0f);
-		model = glm::scale(model, glm::vec3(2.0f, 0.2f, 1.0f));
+		model = glm::scale(model, glm::vec3(4.0f, 0.2f, 1.0f));
 		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
