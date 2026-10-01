@@ -188,7 +188,7 @@ int main() {
 		// Dibujamos Falange 1
 		model = glm::translate(model, glm::vec3(0.15f, 0.0f, 0.0f));
 		model = glm::scale(model, glm::vec3(0.3f, 0.15f, 0.15f));
-		color = glm::vec3(1.0f, 1.0f, 0.0f); // Amarillo
+		color = glm::vec3(1.0f, 1.0f, 0.0f); 
 		glUniform3fv(uniformColor, 1, glm::value_ptr(color));
 		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 		glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -212,7 +212,7 @@ int main() {
 		// Dibujamos Falange 1
 		model = glm::translate(model, glm::vec3(0.15f, 0.0f, 0.0f));
 		model = glm::scale(model, glm::vec3(0.3f, 0.15f, 0.15f));
-		color = glm::vec3(0.0f, 1.0f, 1.0f); // Cian
+		color = glm::vec3(0.0f, 1.0f, 1.0f);
 		glUniform3fv(uniformColor, 1, glm::value_ptr(color));
 		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 		glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -236,7 +236,7 @@ int main() {
 		// Dibujamos Falange 1
 		model = glm::translate(model, glm::vec3(0.18f, 0.0f, 0.0f));
 		model = glm::scale(model, glm::vec3(0.36f, 0.15f, 0.15f));
-		color = glm::vec3(1.0f, 0.0f, 1.0f); // Magenta
+		color = glm::vec3(1.0f, 0.0f, 1.0f);
 		glUniform3fv(uniformColor, 1, glm::value_ptr(color));
 		glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
 		glDrawArrays(GL_TRIANGLES, 0, 36);
