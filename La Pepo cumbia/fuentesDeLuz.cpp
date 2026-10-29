@@ -442,35 +442,23 @@ int main()
 // Moves/alters the camera positions based on user input
 void DoMovement()
 {
-
 	// Camera controls
 	if (keys[GLFW_KEY_W] || keys[GLFW_KEY_UP])
 	{
 		camera.ProcessKeyboard(FORWARD, deltaTime);
-
 	}
-
 	if (keys[GLFW_KEY_S] || keys[GLFW_KEY_DOWN])
 	{
 		camera.ProcessKeyboard(BACKWARD, deltaTime);
-
-
 	}
-
 	if (keys[GLFW_KEY_A] || keys[GLFW_KEY_LEFT])
 	{
 		camera.ProcessKeyboard(LEFT, deltaTime);
-
-
 	}
-
 	if (keys[GLFW_KEY_D] || keys[GLFW_KEY_RIGHT])
 	{
 		camera.ProcessKeyboard(RIGHT, deltaTime);
-
-
 	}
-
 	if (keys[GLFW_KEY_T])
 	{
 		pointLightPositions[0].x += 0.01f;
@@ -479,12 +467,10 @@ void DoMovement()
 	{
 		pointLightPositions[0].x -= 0.01f;
 	}
-
 	if (keys[GLFW_KEY_Y])
 	{
 		pointLightPositions[0].y += 0.01f;
 	}
-
 	if (keys[GLFW_KEY_H])
 	{
 		pointLightPositions[0].y -= 0.01f;
