@@ -465,7 +465,7 @@ float zoomCamara = 165.0f;
 float campoVision = 55.0f;
 double mouseXAnterior = ANCHO_VENTANA / 2.0, mouseYAnterior = ALTO_VENTANA / 2.0;
 bool primerMovimientoMouse = true;
-glm::vec3 jugador(0.0f, 0.0f, 0.0f);
+glm::vec3 jugador(-3.0f, 0.0f, 0.0f);
 glm::vec3 arbitro(7.0f, 0.0f, -4.0f);
 float tiempoAnimacion = 0.0f;
 struct KeyframeBalon { float tiempo, x, y, z; };
@@ -474,7 +474,18 @@ const KeyframeBalon keyframesBalon[] = {
     {0.80f,-17.0f,2.50f,0.0f}, {1.35f,-31.0f,3.20f,0.0f},
     {1.90f,-45.0f,0.70f,0.0f}, {2.20f,-50.0f,0.35f,0.0f}
 };
+struct KeyframeJugador { float tiempo, caderaDer, rodillaDer, tobilloDer, caderaIzq, rodillaIzq, tobilloIzq, brazos; };
+const KeyframeJugador keyframesJugador[] = {
+    {0.00f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,   0.0f},
+    {0.35f, 18.0f,  0.0f,  0.0f, -5.0f,  0.0f,  0.0f, -12.0f},
+    {0.80f,-45.0f,-45.0f, 20.0f, 12.0f,-10.0f, -8.0f,  28.0f},
+    {1.35f,-25.0f,-20.0f, 10.0f,  0.0f,  0.0f,  0.0f, -16.0f},
+    {1.90f,  5.0f,  5.0f,  0.0f,  0.0f,  0.0f,  0.0f,   6.0f},
+    {2.20f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,   0.0f}
+};
 const glm::vec3 AMARILLO(0.95f, 0.72f, 0.12f), AZUL(0.04f, 0.25f, 0.82f);
+enum ModeloArticulado { CUERPO_JUGADOR=17, BRAZO_SUP_DER, BRAZO_INF_DER, BRAZO_SUP_IZQ, BRAZO_INF_IZQ,
+                        MUSLO_DER, PANTORRILLA_DER, PIE_DER, MUSLO_IZQ, PANTORRILLA_IZQ, PIE_IZQ };
 
 void agregarCaja(float x, float y, float z, float sx, float sy, float sz, glm::vec3 c) {
     cajas.push_back({ glm::vec3(x,y,z), glm::vec3(sx,sy,sz), c });
@@ -542,8 +553,8 @@ void tecla(GLFWwindow* w,int key,int,int action,int) {
     if(action==GLFW_PRESS) {
         if(key==GLFW_KEY_V) primeraPersona=!primeraPersona;
         if(key==GLFW_KEY_F) reflectores=!reflectores;
-        if(key==GLFW_KEY_G) ++golesLocal;
-        if(key==GLFW_KEY_H) ++golesVisita;
+        if(key==GLFW_KEY_G) { golesLocal=(golesLocal+1)%100; std::cout<<"Marcador local: "<<golesLocal<<" - visitante: "<<golesVisita<<std::endl; }
+        if(key==GLFW_KEY_H) { golesVisita=(golesVisita+1)%100; std::cout<<"Marcador local: "<<golesLocal<<" - visitante: "<<golesVisita<<std::endl; }
         if(key==GLFW_KEY_R) { golesLocal=golesVisita=0; }
         if(key==GLFW_KEY_SPACE) { animando=true; tiempoAnimacion=0.0f; }
         if(key==GLFW_KEY_PAGE_UP || key==GLFW_KEY_KP_ADD || key==GLFW_KEY_EQUAL) {
@@ -583,7 +594,7 @@ int main() {
     glfwSetInputMode(window,GLFW_CURSOR,GLFW_CURSOR_DISABLED); glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE);
     GLuint programa=glCreateProgram(); GLuint vs=glCreateShader(GL_VERTEX_SHADER),fs=glCreateShader(GL_FRAGMENT_SHADER);
     std::string vert="#version 330 core\nlayout(location=0) in vec3 p; layout(location=1) in vec3 inputColor; uniform mat4 model,view,projection; out vec3 world; out vec3 vertexColor; void main(){ vec4 w=model*vec4(p,1); world=w.xyz; vertexColor=inputColor; gl_Position=projection*view*w;}";
-    std::string frag="#version 330 core\nin vec3 world; in vec3 vertexColor; uniform vec3 tint; uniform int field; uniform int lamps; uniform sampler2D grassTexture; out vec4 color; void main(){ float stripe=mod(floor((world.z+52.5)/10.5),2.0); vec3 texel=texture(grassTexture,world.xz*0.045).rgb*mix(0.82,1.0,stripe); float isLine=step(0.80,min(vertexColor.r,min(vertexColor.g,vertexColor.b))); vec3 c=(field==1)?mix(texel,vertexColor,isLine):tint; float light=mix(0.62,1.0,float(lamps)); color=vec4(c*light,1.0); }";
+    std::string frag="#version 330 core\nin vec3 world; in vec3 vertexColor; uniform vec3 tint; uniform int field; uniform int lamps; uniform int uiMode; uniform vec3 spotPos[4]; uniform vec3 spotDir[4]; uniform sampler2D grassTexture; out vec4 color; float stadiumLight(vec3 normal){ if(lamps==0) return 0.20; float result=0.24; for(int i=0;i<4;++i){ vec3 ray=world-spotPos[i]; float d=length(ray); float cone=dot(normalize(ray),normalize(spotDir[i])); float beam=smoothstep(0.28,0.78,cone); float diffuse=max(dot(normal,normalize(-ray)),0.0); result+=beam*diffuse*2.0/(1.0+0.006*d+0.00025*d*d); } return clamp(result,0.20,1.55); } void main(){ float stripe=mod(floor((world.z+52.5)/10.5),2.0); vec3 texel=texture(grassTexture,world.xz*0.045).rgb*mix(0.82,1.0,stripe); float isLine=step(0.80,min(vertexColor.r,min(vertexColor.g,vertexColor.b))); vec3 c=(field==1)?mix(texel,vertexColor,isLine):tint; float illumination=uiMode==1?1.0:stadiumLight(vec3(0,1,0)); color=vec4(c*illumination,1.0); }";
     const char* v=vert.c_str(); const char* f=frag.c_str(); glShaderSource(vs,1,&v,nullptr); glShaderSource(fs,1,&f,nullptr); glCompileShader(vs); glCompileShader(fs);
     GLint ok=0; glGetShaderiv(vs,GL_COMPILE_STATUS,&ok); if(!ok) std::cerr<<"Vertex shader compilation failed\n";
     glGetShaderiv(fs,GL_COMPILE_STATUS,&ok); if(!ok) std::cerr<<"Fragment shader compilation failed\n";
@@ -602,9 +613,13 @@ int main() {
     glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,8,8,0,GL_RGB,GL_UNSIGNED_BYTE,cesped); glGenerateMipmap(GL_TEXTURE_2D);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_LINEAR); glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT); glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
+    GLuint texturaAtlas=SOIL_load_OGL_texture("Models/ProyectoGrafica/uniformes/atlas.png",SOIL_LOAD_AUTO,SOIL_CREATE_NEW_ID,SOIL_FLAG_INVERT_Y);
+    GLuint texturaCruzAzul=SOIL_load_OGL_texture("Models/ProyectoGrafica/uniformes/cruz_azul.png",SOIL_LOAD_AUTO,SOIL_CREATE_NEW_ID,SOIL_FLAG_INVERT_Y);
+    if(!texturaAtlas) std::cerr<<"No se pudo cargar el uniforme Atlas: Models/ProyectoGrafica/uniformes/atlas.png"<<std::endl;
+    if(!texturaCruzAzul) std::cerr<<"No se pudo cargar el uniforme Cruz Azul: Models/ProyectoGrafica/uniformes/cruz_azul.png"<<std::endl;
     GLuint programaModelos=glCreateProgram(); GLuint modeloVS=glCreateShader(GL_VERTEX_SHADER),modeloFS=glCreateShader(GL_FRAGMENT_SHADER);
-    std::string vertexModelo="#version 330 core\nlayout(location=0) in vec3 p; layout(location=1) in vec3 n; layout(location=2) in vec2 uv; uniform mat4 model,view,projection; out vec3 normalWorld; out vec2 texCoord; void main(){ normalWorld=mat3(transpose(inverse(model)))*n; texCoord=uv; gl_Position=projection*view*model*vec4(p,1.0); }";
-    std::string fragmentModelo="#version 330 core\nin vec3 normalWorld; in vec2 texCoord; uniform sampler2D diffuseTexture; uniform vec3 materialColor; uniform vec3 lightDirection; uniform float lightStrength; uniform int hasTexture; out vec4 fragColor; void main(){ vec3 base=hasTexture==1?texture(diffuseTexture,texCoord).rgb:materialColor; float diffuse=max(dot(normalize(normalWorld),normalize(lightDirection)),0.0); float illumination=mix(0.48+0.52*diffuse,0.48,1.0-lightStrength); fragColor=vec4(base*illumination,1.0); }";
+    std::string vertexModelo="#version 330 core\nlayout(location=0) in vec3 p; layout(location=1) in vec3 n; layout(location=2) in vec2 uv; uniform mat4 model,view,projection; out vec3 world; out vec3 normalWorld; out vec2 texCoord; void main(){ vec4 wp=model*vec4(p,1.0); world=wp.xyz; normalWorld=mat3(transpose(inverse(model)))*n; texCoord=uv; gl_Position=projection*view*wp; }";
+    std::string fragmentModelo="#version 330 core\nin vec3 world; in vec3 normalWorld; in vec2 texCoord; uniform sampler2D diffuseTexture; uniform vec3 materialColor; uniform vec3 teamColor; uniform int teamColorable; uniform int hasTexture; uniform int lamps; uniform vec3 spotPos[4]; uniform vec3 spotDir[4]; out vec4 fragColor; void main(){ vec3 base=hasTexture==1?texture(diffuseTexture,texCoord).rgb:materialColor; if(teamColorable==1) base=teamColor; vec3 normal=normalize(normalWorld); float illumination=lamps==1?0.24:0.20; if(lamps==1) for(int i=0;i<4;++i){ vec3 ray=world-spotPos[i]; float d=length(ray); float cone=dot(normalize(ray),normalize(spotDir[i])); float beam=smoothstep(0.28,0.78,cone); float diffuse=max(dot(normal,normalize(-ray)),0.0); illumination+=beam*diffuse*2.0/(1.0+0.006*d+0.00025*d*d); } fragColor=vec4(base*clamp(illumination,0.20,1.55),1.0); }";
     const char* mv=vertexModelo.c_str(); const char* mf=fragmentModelo.c_str(); glShaderSource(modeloVS,1,&mv,nullptr); glShaderSource(modeloFS,1,&mf,nullptr); glCompileShader(modeloVS); glCompileShader(modeloFS);
     glAttachShader(programaModelos,modeloVS); glAttachShader(programaModelos,modeloFS); glLinkProgram(programaModelos);
     glDeleteShader(modeloVS); glDeleteShader(modeloFS);
@@ -623,10 +638,29 @@ int main() {
     };
     const char* filtrosModelo[]={nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,
         "Jugador_CHICHARITO|CHICHARITO_|","Arbitro|ARBITRO_|",nullptr,nullptr,nullptr,nullptr,nullptr,nullptr};
-    std::vector<ModeloOBJ> modelos; modelos.reserve(17);
+    std::vector<ModeloOBJ> modelos; modelos.reserve(28);
     int modelosCargados=0;
     for(int i=0;i<17;++i) { modelos.emplace_back(); if(modelos.back().cargar(rutasModelos[i],filtrosModelo[i]?filtrosModelo[i]:"")) ++modelosCargados; }
     std::cout<<"Modelos OBJ cargados: "<<modelosCargados<<"/17 (16 modelos fuente; jugador y arbitro separados)"<<std::endl;
+    const std::string rutaJugador=rutasModelos[9];
+    const char* filtrosArticulados[]={
+        "Jugador_CHICHARITO|CHICHARITO_|!Jugador_CHICHARITO_antebrazo_derecho_|!Jugador_CHICHARITO_antebrazo_izquierdo_|!Jugador_CHICHARITO_codo_derecho_|!Jugador_CHICHARITO_codo_izquierdo_|!Jugador_CHICHARITO_muslo_derecha_|!Jugador_CHICHARITO_muslo_izquierda_|!Jugador_CHICHARITO_pierna_derecha_|!Jugador_CHICHARITO_pierna_izquierda_|!Jugador_CHICHARITO_rodilla_derecha_|!Jugador_CHICHARITO_rodilla_izquierda_|!Jugador_CHICHARITO_tobillo_derecha_|!Jugador_CHICHARITO_tobillo_izquierda_|!Jugador_CHICHARITO_banda_media_|!Jugador_CHICHARITO_agujeta_|!Jugador_CHICHARITO_suela_|!Jugador_CHICHARITO_tachon_|!CHICHARITO_\\|_palma_|!CHICHARITO_\\|_manga_anatómica_",
+        "CHICHARITO_\\|_manga_anatómica_derecha_",
+        "Jugador_CHICHARITO_antebrazo_derecho_|Jugador_CHICHARITO_codo_derecho_|CHICHARITO_\\|_palma_derecha_",
+        "CHICHARITO_\\|_manga_anatómica_izquierda_",
+        "Jugador_CHICHARITO_antebrazo_izquierdo_|Jugador_CHICHARITO_codo_izquierdo_|CHICHARITO_\\|_palma_izquierda_",
+        "Jugador_CHICHARITO_muslo_derecha_|Jugador_CHICHARITO_rodilla_derecha_",
+        "Jugador_CHICHARITO_pierna_derecha_|Jugador_CHICHARITO_tobillo_derecha_|Jugador_CHICHARITO_banda_media_derecha",
+        "Jugador_CHICHARITO_agujeta_derecha|Jugador_CHICHARITO_suela_derecha_|Jugador_CHICHARITO_tachon_derecha_",
+        "Jugador_CHICHARITO_muslo_izquierda_|Jugador_CHICHARITO_rodilla_izquierda_",
+        "Jugador_CHICHARITO_pierna_izquierda_|Jugador_CHICHARITO_tobillo_izquierda_|Jugador_CHICHARITO_banda_media_izquierda",
+        "Jugador_CHICHARITO_agujeta_izquierda|Jugador_CHICHARITO_suela_izquierda_|Jugador_CHICHARITO_tachon_izquierda_"
+    };
+    for(size_t i=0;i<sizeof(filtrosArticulados)/sizeof(filtrosArticulados[0]);++i) {
+        modelos.emplace_back();
+        if(!modelos.back().cargar(rutaJugador,filtrosArticulados[i]))
+            std::cerr<<"No se pudo cargar una parte articulada del jugador: "<<filtrosArticulados[i]<<std::endl;
+    }
     std::vector<Instancia> instancias;
     auto instancia=[&](size_t m,glm::vec3 p,float s,float r=0.0f,float x=0.0f) { instancias.push_back({m,p,s,r,x}); };
     // El campo importado mide aprox. 101 x 68 unidades: largo en X, ancho en Z.
@@ -650,7 +684,18 @@ int main() {
     instancia(16,glm::vec3(-34.0f,-0.5,-21.9f),4.5f); instancia(16,glm::vec3(-34.0f,-0.5,21.9f),4.5f);
     instancia(16,glm::vec3(34.0f,-0.5,21.9f),4.5f); instancia(16,glm::vec3(34.0f,-0.5,-21.9f),4.5f);
     GLint locM=glGetUniformLocation(programa,"model"),locV=glGetUniformLocation(programa,"view"),locP=glGetUniformLocation(programa,"projection");
-    GLint locColor=glGetUniformLocation(programa,"tint"),locField=glGetUniformLocation(programa,"field"),locLamps=glGetUniformLocation(programa,"lamps");
+    GLint locColor=glGetUniformLocation(programa,"tint"),locField=glGetUniformLocation(programa,"field"),locLamps=glGetUniformLocation(programa,"lamps"),locUI=glGetUniformLocation(programa,"uiMode");
+    // Los focos de luz coinciden con los cuatro reflectores ya colocados en la escena.
+    const glm::vec3 posicionesSpot[4]={glm::vec3(-50,29,-40),glm::vec3(50,29,-40),glm::vec3(-50,29,40),glm::vec3(50,29,40)};
+    glm::vec3 direccionesSpot[4];
+    for(int i=0;i<4;++i) direccionesSpot[i]=glm::normalize(-posicionesSpot[i]);
+    auto cargarSpots=[&](GLuint programaActivo) {
+        for(int i=0;i<4;++i) {
+            std::string nombrePos="spotPos["+std::to_string(i)+"]", nombreDir="spotDir["+std::to_string(i)+"]";
+            glUniform3fv(glGetUniformLocation(programaActivo,nombrePos.c_str()),1,glm::value_ptr(posicionesSpot[i]));
+            glUniform3fv(glGetUniformLocation(programaActivo,nombreDir.c_str()),1,glm::value_ptr(direccionesSpot[i]));
+        }
+    };
     glUseProgram(programa); glUniform1i(glGetUniformLocation(programa,"grassTexture"),0);
     double anterior=glfwGetTime();
     while(!glfwWindowShouldClose(window)) {
@@ -663,7 +708,7 @@ int main() {
         if(teclas[GLFW_KEY_A]) jugador-=derecha*dt*velocidadJugador;
         if(teclas[GLFW_KEY_D]) jugador+=derecha*dt*velocidadJugador;
         jugador.x=glm::clamp(jugador.x,-48.0f,48.0f); jugador.z=glm::clamp(jugador.z,-31.0f,31.0f);
-        if(animando) { tiempoAnimacion+=dt; if(tiempoAnimacion>=2.2f) { animando=false; ++golesLocal; } }
+        if(animando) { tiempoAnimacion+=dt; if(tiempoAnimacion>=2.2f) { animando=false; golesLocal=(golesLocal+1)%100; } }
         glm::vec3 posCam, objetivo;
         if(primeraPersona) { posCam=jugador+glm::vec3(0,1.7f,0); float pitch=glm::radians(anguloMouseY); glm::vec3 f=glm::normalize(glm::vec3(cos(yaw)*cos(pitch),sin(pitch),sin(yaw)*cos(pitch))); objetivo=posCam+f; }
         else {
@@ -673,20 +718,100 @@ int main() {
         }
         glm::mat4 vista=glm::lookAt(posCam,objetivo,glm::vec3(0,1,0)); int ww,hh; glfwGetFramebufferSize(window,&ww,&hh); if(hh==0) hh=1;
         glm::mat4 proy=glm::perspective(glm::radians(campoVision),(float)ww/hh,0.1f,520.0f);
-        glViewport(0,0,ww,hh); glClearColor(0.015f,0.035f,0.08f,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); glUseProgram(programa);
-        glUniformMatrix4fv(locV,1,GL_FALSE,glm::value_ptr(vista)); glUniformMatrix4fv(locP,1,GL_FALSE,glm::value_ptr(proy)); glUniform1i(locLamps,reflectores?1:0);
+        glViewport(0,0,ww,hh); glClearColor(0.015f,0.035f,0.08f,1); glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); glUseProgram(programa); cargarSpots(programa);
+        glUniformMatrix4fv(locV,1,GL_FALSE,glm::value_ptr(vista)); glUniformMatrix4fv(locP,1,GL_FALSE,glm::value_ptr(proy)); glUniform1i(locLamps,reflectores?1:0); glUniform1i(locUI,0);
         glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D,texturaCesped);
         glUniformMatrix4fv(locM,1,GL_FALSE,glm::value_ptr(glm::mat4(1))); glUniform3f(locColor,1,1,1); glUniform1i(locField,1); glBindVertexArray(vao); glDrawArrays(GL_TRIANGLES,0,(GLsizei)(vertices.size()/6));
         glUniform1i(locField,0); glBindVertexArray(cuboVao);
         for(const Caja& c:cajas) { glm::mat4 m=transformacion(c.centro,c.escala); glUniformMatrix4fv(locM,1,GL_FALSE,glm::value_ptr(m)); glUniform3fv(locColor,1,glm::value_ptr(c.color)); glDrawArrays(GL_TRIANGLES,0,36); }
-        glUseProgram(programaModelos);
+        glUseProgram(programaModelos); cargarSpots(programaModelos);
         for(const Instancia& item:instancias) modelos[item.modelo].dibujar(programaModelos,vista,proy,item.posicion,item.tamano,item.rotacion,reflectores,item.inclinacion);
         glUseProgram(programa);
         glUniformMatrix4fv(locV,1,GL_FALSE,glm::value_ptr(vista)); glUniformMatrix4fv(locP,1,GL_FALSE,glm::value_ptr(proy)); glUniform1i(locLamps,reflectores?1:0);
         glBindVertexArray(cuboVao);
         auto dibujaParte=[&](glm::vec3 pos,glm::vec3 escala,glm::vec3 color,glm::mat4 base) { glm::mat4 m=base; m=glm::translate(m,pos); m=glm::scale(m,escala); glUniformMatrix4fv(locM,1,GL_FALSE,glm::value_ptr(m)); glUniform3fv(locColor,1,glm::value_ptr(color)); glDrawArrays(GL_TRIANGLES,0,36); };
         glUseProgram(programaModelos);
-        modelos[9].dibujar(programaModelos,vista,proy,jugador,3.2f,0.0f,reflectores);
+        const ModeloOBJ& marcoJugador=modelos[9];
+        const float escalaJugador=3.2f/marcoJugador.extensionMaximaModelo();
+        glm::vec3 centroJugador=marcoJugador.centroModelo();
+        auto crearRaizJugador=[&](glm::vec3 posicion,float giroY) {
+            glm::mat4 raiz(1.0f);
+            raiz=glm::translate(raiz,posicion+glm::vec3(0,(centroJugador.y-marcoJugador.extensionVerticalMinima())*escalaJugador,0));
+            raiz=glm::rotate(raiz,glm::radians(giroY),glm::vec3(0,1,0));
+            raiz=glm::scale(raiz,glm::vec3(escalaJugador));
+            return glm::translate(raiz,-centroJugador);
+        };
+        glm::mat4 raizJugador=crearRaizJugador(jugador,-90.0f);
+        const glm::vec3 colorAtlas(0.04f,0.06f,0.16f), colorCruzAzul(0.05f,0.30f,0.92f);
+        auto dibujaJugadorCompleto=[&](const glm::mat4& raiz,const glm::vec3& uniforme,GLuint texturaUniforme) {
+            modelos[CUERPO_JUGADOR].dibujarConMatriz(programaModelos,vista,proy,raiz,reflectores,uniforme,true,texturaUniforme);
+            modelos[BRAZO_SUP_DER].dibujarConMatriz(programaModelos,vista,proy,raiz,reflectores,uniforme,true,texturaUniforme);
+            modelos[BRAZO_INF_DER].dibujarConMatriz(programaModelos,vista,proy,raiz,reflectores,uniforme,true,texturaUniforme);
+            modelos[BRAZO_SUP_IZQ].dibujarConMatriz(programaModelos,vista,proy,raiz,reflectores,uniforme,true,texturaUniforme);
+            modelos[BRAZO_INF_IZQ].dibujarConMatriz(programaModelos,vista,proy,raiz,reflectores,uniforme,true,texturaUniforme);
+            modelos[MUSLO_DER].dibujarConMatriz(programaModelos,vista,proy,raiz,reflectores,uniforme,true,texturaUniforme);
+            modelos[PANTORRILLA_DER].dibujarConMatriz(programaModelos,vista,proy,raiz,reflectores,uniforme,true,texturaUniforme);
+            modelos[PIE_DER].dibujarConMatriz(programaModelos,vista,proy,raiz,reflectores,uniforme,true,texturaUniforme);
+            modelos[MUSLO_IZQ].dibujarConMatriz(programaModelos,vista,proy,raiz,reflectores,uniforme,true,texturaUniforme);
+            modelos[PANTORRILLA_IZQ].dibujarConMatriz(programaModelos,vista,proy,raiz,reflectores,uniforme,true,texturaUniforme);
+            modelos[PIE_IZQ].dibujarConMatriz(programaModelos,vista,proy,raiz,reflectores,uniforme,true,texturaUniforme);
+        };
+        auto giroArticulacion=[](glm::vec3 pivote,float grados,glm::vec3 eje) {
+            glm::mat4 giro(1.0f); giro=glm::translate(giro,pivote); giro=glm::rotate(giro,glm::radians(grados),eje); return glm::translate(giro,-pivote);
+        };
+        bool jugadorEnMovimiento=teclas[GLFW_KEY_W]||teclas[GLFW_KEY_A]||teclas[GLFW_KEY_S]||teclas[GLFW_KEY_D];
+        float caderaDer=0,rodillaDer=0,tobilloDer=0,caderaIzq=0,rodillaIzq=0,tobilloIzq=0,brazos=0;
+        if(animando) {
+            auto interpolarPose=[&](float KeyframeJugador::* canal) {
+                for(size_t k=0;k+1<sizeof(keyframesJugador)/sizeof(keyframesJugador[0]);++k) {
+                    const KeyframeJugador& a=keyframesJugador[k]; const KeyframeJugador& b=keyframesJugador[k+1];
+                    if(tiempoAnimacion>=a.tiempo&&tiempoAnimacion<=b.tiempo) {
+                        float u=(tiempoAnimacion-a.tiempo)/(b.tiempo-a.tiempo); return glm::mix(a.*canal,b.*canal,u);
+                    }
+                }
+                return 0.0f;
+            };
+            caderaDer=interpolarPose(&KeyframeJugador::caderaDer); rodillaDer=interpolarPose(&KeyframeJugador::rodillaDer); tobilloDer=interpolarPose(&KeyframeJugador::tobilloDer);
+            caderaIzq=interpolarPose(&KeyframeJugador::caderaIzq); rodillaIzq=interpolarPose(&KeyframeJugador::rodillaIzq); tobilloIzq=interpolarPose(&KeyframeJugador::tobilloIzq); brazos=interpolarPose(&KeyframeJugador::brazos);
+        } else if(jugadorEnMovimiento) {
+            float paso=sin((float)ahora*9.0f)*24.0f; caderaDer=paso; caderaIzq=-paso;
+            rodillaDer=glm::max(0.0f,sin((float)ahora*9.0f+1.4f))*25.0f; rodillaIzq=glm::max(0.0f,sin((float)ahora*9.0f+PI+1.4f))*25.0f;
+            tobilloDer=-rodillaDer*0.25f; tobilloIzq=-rodillaIzq*0.25f;
+            brazos=-paso*0.45f;
+        }
+        const glm::vec3 hombroDer(-0.94f,2.55f,0), hombroIzq(-1.56f,2.55f,0);
+        const glm::vec3 codoDer(-0.73f,2.13f,0), codoIzq(-1.77f,2.13f,0);
+        const glm::vec3 caderaJugadorDer(-1.12f,1.70f,0), caderaJugadorIzq(-1.38f,1.70f,0);
+        const glm::vec3 rodillaJugadorDer(-1.06f,1.05f,0.015f), rodillaJugadorIzq(-1.44f,1.05f,0.015f);
+        const glm::vec3 tobilloDerJugador(-1.05f,0.42f,0.015f), tobilloIzqJugador(-1.45f,0.42f,0.015f);
+        glm::mat4 hombroDerM=giroArticulacion(hombroDer,brazos,glm::vec3(0,1,0));
+        glm::mat4 hombroIzqM=giroArticulacion(hombroIzq,-brazos,glm::vec3(0,1,0));
+        float codoAnimado=animando?-18.0f:(jugadorEnMovimiento?12.0f:0.0f);
+        glm::mat4 codoDerM=giroArticulacion(codoDer,codoAnimado,glm::vec3(0,1,0));
+        glm::mat4 codoIzqM=giroArticulacion(codoIzq,codoAnimado,glm::vec3(0,1,0));
+        glm::mat4 caderaDerM=giroArticulacion(caderaJugadorDer,caderaDer,glm::vec3(0,0,1));
+        glm::mat4 caderaIzqM=giroArticulacion(caderaJugadorIzq,caderaIzq,glm::vec3(0,0,1));
+        glm::mat4 rodillaDerM=giroArticulacion(rodillaJugadorDer,rodillaDer,glm::vec3(0,0,1));
+        glm::mat4 rodillaIzqM=giroArticulacion(rodillaJugadorIzq,rodillaIzq,glm::vec3(0,0,1));
+        glm::mat4 tobilloDerM=giroArticulacion(tobilloDerJugador,tobilloDer,glm::vec3(0,0,1));
+        glm::mat4 tobilloIzqM=giroArticulacion(tobilloIzqJugador,tobilloIzq,glm::vec3(0,0,1));
+        if(!primeraPersona) {
+            modelos[CUERPO_JUGADOR].dibujarConMatriz(programaModelos,vista,proy,raizJugador,reflectores,colorAtlas,true,texturaAtlas);
+            modelos[BRAZO_SUP_DER].dibujarConMatriz(programaModelos,vista,proy,raizJugador*hombroDerM,reflectores,colorAtlas,true,texturaAtlas);
+            modelos[BRAZO_INF_DER].dibujarConMatriz(programaModelos,vista,proy,raizJugador*hombroDerM*codoDerM,reflectores,colorAtlas,true,texturaAtlas);
+            modelos[BRAZO_SUP_IZQ].dibujarConMatriz(programaModelos,vista,proy,raizJugador*hombroIzqM,reflectores,colorAtlas,true,texturaAtlas);
+            modelos[BRAZO_INF_IZQ].dibujarConMatriz(programaModelos,vista,proy,raizJugador*hombroIzqM*codoIzqM,reflectores,colorAtlas,true,texturaAtlas);
+            modelos[MUSLO_DER].dibujarConMatriz(programaModelos,vista,proy,raizJugador*caderaDerM,reflectores,colorAtlas,true,texturaAtlas);
+            modelos[PANTORRILLA_DER].dibujarConMatriz(programaModelos,vista,proy,raizJugador*caderaDerM*rodillaDerM,reflectores,colorAtlas,true,texturaAtlas);
+            modelos[PIE_DER].dibujarConMatriz(programaModelos,vista,proy,raizJugador*caderaDerM*rodillaDerM*tobilloDerM,reflectores,colorAtlas,true,texturaAtlas);
+            modelos[MUSLO_IZQ].dibujarConMatriz(programaModelos,vista,proy,raizJugador*caderaIzqM,reflectores,colorAtlas,true,texturaAtlas);
+            modelos[PANTORRILLA_IZQ].dibujarConMatriz(programaModelos,vista,proy,raizJugador*caderaIzqM*rodillaIzqM,reflectores,colorAtlas,true,texturaAtlas);
+            modelos[PIE_IZQ].dibujarConMatriz(programaModelos,vista,proy,raizJugador*caderaIzqM*rodillaIzqM*tobilloIzqM,reflectores,colorAtlas,true,texturaAtlas);
+        }
+        const glm::vec2 equipoRojo[10]={glm::vec2(30,0),glm::vec2(18,-18),glm::vec2(18,-6),glm::vec2(18,6),glm::vec2(18,18),glm::vec2(5,-13),glm::vec2(5,0),glm::vec2(5,13),glm::vec2(-8,-13),glm::vec2(-8,13)};
+        const glm::vec2 equipoBlanco[11]={glm::vec2(-30,0),glm::vec2(-18,-18),glm::vec2(-18,-6),glm::vec2(-18,6),glm::vec2(-18,18),glm::vec2(-5,-13),glm::vec2(-5,0),glm::vec2(-5,13),glm::vec2(8,-13),glm::vec2(8,0),glm::vec2(8,13)};
+        for(const glm::vec2& p:equipoRojo) dibujaJugadorCompleto(crearRaizJugador(glm::vec3(p.x,0,p.y),-90.0f),colorAtlas,texturaAtlas);
+        for(const glm::vec2& p:equipoBlanco) dibujaJugadorCompleto(crearRaizJugador(glm::vec3(p.x,0,p.y),90.0f),colorCruzAzul,texturaCruzAzul);
         modelos[10].dibujar(programaModelos,vista,proy,arbitro,3.2f,180.0f,reflectores);
         glUseProgram(programa);
         // Marcador de siete segmentos: G suma local, H suma visita, R reinicia.
@@ -709,10 +834,36 @@ int main() {
         glm::vec3 balon=jugador+glm::vec3(bx,by,bz);
         if(modelos[1].listo()) { glUseProgram(programaModelos); modelos[1].dibujar(programaModelos,vista,proy,balon,1.5f,tiempoAnimacion*180.0f,reflectores); glUseProgram(programa); glBindVertexArray(cuboVao); }
         else dibujaParte(balon,glm::vec3(0.65f),glm::vec3(0.94f,0.94f,0.88f),glm::mat4(1));
+        // Marcador HUD fijo para que G/H siempre produzcan una respuesta visible.
+        glUseProgram(programa); glDisable(GL_DEPTH_TEST);
+        glm::mat4 vistaHUD(1.0f), proyeccionHUD=glm::ortho(0.0f,(float)ww,0.0f,(float)hh,-100.0f,100.0f);
+        glUniformMatrix4fv(locV,1,GL_FALSE,glm::value_ptr(vistaHUD)); glUniformMatrix4fv(locP,1,GL_FALSE,glm::value_ptr(proyeccionHUD));
+        glUniform1i(locField,0); glUniform1i(locLamps,0); glUniform1i(locUI,1);
+        float centroHUD=ww*0.5f, altoHUD=(float)hh-48.0f;
+        dibujaParte(glm::vec3(centroHUD,altoHUD,0),glm::vec3(260,72,2),glm::vec3(0.025f,0.045f,0.085f),glm::mat4(1));
+        auto dibujaPatronHUD=[&](const int* patron,float cx,float cy,glm::vec3 color,float ancho,float alto,float grosor) {
+            const float sx[7]={0,ancho/2,ancho/2,0,-ancho/2,-ancho/2,0};
+            const float sy[7]={alto/2,alto/4,-alto/4,-alto/2,-alto/4,alto/4,0};
+            for(int i=0;i<7;++i) if(patron[i]) {
+                bool horizontal=(i==0||i==3||i==6);
+                glm::vec3 escala=horizontal?glm::vec3(ancho,grosor,1):glm::vec3(grosor,alto/2,grosor);
+                dibujaParte(glm::vec3(cx+sx[i],cy+sy[i],0),escala,color,glm::mat4(1));
+            }
+        };
+        const int letraG[7]={1,0,1,1,1,1,1}, letraH[7]={0,1,1,0,1,1,1};
+        const glm::vec3 colorLocal(1.0f,0.24f,0.20f), colorVisita(0.78f,0.90f,1.0f), colorDigito(0.98f,0.82f,0.36f);
+        dibujaPatronHUD(letraG,centroHUD-91,altoHUD,colorLocal,18,40,4);
+        dibujaPatronHUD(segmentos[golesLocal/10],centroHUD-47,altoHUD,colorDigito,27,48,5);
+        dibujaPatronHUD(segmentos[golesLocal%10],centroHUD-17,altoHUD,colorDigito,27,48,5);
+        dibujaPatronHUD(segmentos[golesVisita/10],centroHUD+17,altoHUD,colorDigito,27,48,5);
+        dibujaPatronHUD(segmentos[golesVisita%10],centroHUD+47,altoHUD,colorDigito,27,48,5);
+        dibujaPatronHUD(letraH,centroHUD+91,altoHUD,colorVisita,18,40,4);
+        glUniform1i(locUI,0); glEnable(GL_DEPTH_TEST);
         glfwSwapBuffers(window);
     }
     for(size_t i=0;i<modelos.size();++i) modelos[i].liberar();
-    glDeleteTextures(1,&texturaCesped); glDeleteVertexArrays(1,&vao); glDeleteBuffers(1,&vbo); glDeleteVertexArrays(1,&cuboVao); glDeleteBuffers(1,&cuboVbo); glDeleteProgram(programa); glDeleteProgram(programaModelos);
+    glDeleteTextures(1,&texturaCesped); if(texturaAtlas) glDeleteTextures(1,&texturaAtlas); if(texturaCruzAzul) glDeleteTextures(1,&texturaCruzAzul);
+    glDeleteVertexArrays(1,&vao); glDeleteBuffers(1,&vbo); glDeleteVertexArrays(1,&cuboVao); glDeleteBuffers(1,&cuboVbo); glDeleteProgram(programa); glDeleteProgram(programaModelos);
     glfwDestroyWindow(window); glfwTerminate(); return 0;
 }
 

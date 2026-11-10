@@ -27,6 +27,7 @@ struct ParteOBJ {
     GLuint textura = 0;
     GLsizei vertices = 0;
     glm::vec3 color = glm::vec3(0.8f);
+    bool colorEquipo = false;
 };
 
 // Carga Wavefront OBJ/MTL sin Assimp para mantener el ejecutable compatible
@@ -49,10 +50,23 @@ public:
         std::vector<std::string> ordenGrupos;
         std::map<std::string, size_t> indicesGrupo;
         std::vector<std::string> prefijosFiltro;
+        std::vector<std::string> prefijosExcluidos;
         if (!filtroGrupo.empty()) {
-            std::istringstream filtros(filtroGrupo);
             std::string prefijo;
-            while (std::getline(filtros, prefijo, '|')) if (!prefijo.empty()) prefijosFiltro.push_back(prefijo);
+            auto guardarPrefijo = [&]() {
+                if (prefijo.empty()) return;
+                if (prefijo[0] == '!') prefijosExcluidos.push_back(prefijo.substr(1));
+                else prefijosFiltro.push_back(prefijo);
+                prefijo.clear();
+            };
+            for (size_t i = 0; i < filtroGrupo.size(); ++i) {
+                if (filtroGrupo[i] == '\\' && i + 1 < filtroGrupo.size() && filtroGrupo[i + 1] == '|') {
+                    prefijo.push_back('|');
+                    ++i;
+                } else if (filtroGrupo[i] == '|') guardarPrefijo();
+                else prefijo.push_back(filtroGrupo[i]);
+            }
+            guardarPrefijo();
         }
         std::string materialActual = "default", archivoMaterial, nombreGrupoOBJ;
         glm::vec3 minimo(1.0e30f), maximo(-1.0e30f);
@@ -90,6 +104,9 @@ public:
                 bool grupoPermitido = prefijosFiltro.empty();
                 for (size_t i = 0; !grupoPermitido && i < prefijosFiltro.size(); ++i)
                     grupoPermitido = nombreGrupoOBJ.compare(0, prefijosFiltro[i].size(), prefijosFiltro[i]) == 0;
+                for (size_t i = 0; grupoPermitido && i < prefijosExcluidos.size(); ++i)
+                    if (nombreGrupoOBJ.compare(0, prefijosExcluidos[i].size(), prefijosExcluidos[i]) == 0)
+                        grupoPermitido = false;
                 if (!grupoPermitido) continue;
                 std::vector<VerticeOBJ> cara;
                 std::string token;
@@ -139,6 +156,7 @@ public:
             if (vertices.empty()) continue;
             ParteOBJ parte;
             parte.vertices = (GLsizei)vertices.size();
+            parte.colorEquipo = nombre.find("Verde") != std::string::npos;
             if (colores.find(nombre) != colores.end()) parte.color = colores[nombre];
             if (mapas.find(nombre) != mapas.end()) {
                 std::string archivoTextura = carpeta + mapas[nombre];
@@ -175,16 +193,27 @@ public:
         modelo = glm::rotate(modelo, glm::radians(rotacionX), glm::vec3(1, 0, 0));
         modelo = glm::scale(modelo, glm::vec3(escala));
         modelo = glm::translate(modelo, -centro);
+        dibujarConMatriz(programa, vista, proyeccion, modelo, iluminacion);
+    }
+
+    void dibujarConMatriz(GLuint programa, const glm::mat4& vista, const glm::mat4& proyeccion,
+                          const glm::mat4& modelo, bool iluminacion,
+                          const glm::vec3& colorEquipo = glm::vec3(1.0f), bool aplicarColorEquipo = false,
+                          GLuint texturaEquipo = 0) const {
+        if (!cargado) return;
         glUniformMatrix4fv(glGetUniformLocation(programa, "model"), 1, GL_FALSE, glm::value_ptr(modelo));
         glUniformMatrix4fv(glGetUniformLocation(programa, "view"), 1, GL_FALSE, glm::value_ptr(vista));
         glUniformMatrix4fv(glGetUniformLocation(programa, "projection"), 1, GL_FALSE, glm::value_ptr(proyeccion));
-        glUniform3fv(glGetUniformLocation(programa, "lightDirection"), 1, glm::value_ptr(glm::normalize(glm::vec3(-0.45f, 1.0f, 0.35f))));
-        glUniform1f(glGetUniformLocation(programa, "lightStrength"), iluminacion ? 1.0f : 0.55f);
+        glUniform1i(glGetUniformLocation(programa, "lamps"), iluminacion ? 1 : 0);
+        glUniform3fv(glGetUniformLocation(programa, "teamColor"), 1, glm::value_ptr(colorEquipo));
         for (size_t i = 0; i < partes.size(); ++i) {
             const ParteOBJ& parte = partes[i];
+            GLuint texturaActiva = aplicarColorEquipo && parte.colorEquipo && texturaEquipo ? texturaEquipo : parte.textura;
+            bool reemplazarColor = aplicarColorEquipo && parte.colorEquipo && texturaActiva == 0;
             glUniform3fv(glGetUniformLocation(programa, "materialColor"), 1, glm::value_ptr(parte.color));
-            glUniform1i(glGetUniformLocation(programa, "hasTexture"), parte.textura != 0 ? 1 : 0);
-            glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, parte.textura);
+            glUniform1i(glGetUniformLocation(programa, "teamColorable"), reemplazarColor ? 1 : 0);
+            glUniform1i(glGetUniformLocation(programa, "hasTexture"), texturaActiva != 0 ? 1 : 0);
+            glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, texturaActiva);
             glBindVertexArray(parte.vao); glDrawArrays(GL_TRIANGLES, 0, parte.vertices);
         }
         glBindVertexArray(0);
@@ -200,6 +229,9 @@ public:
     }
 
     bool listo() const { return cargado; }
+    glm::vec3 centroModelo() const { return centro; }
+    float extensionVerticalMinima() const { return extensionMinima.y; }
+    float extensionMaximaModelo() const { return extensionMaxima; }
 
 private:
     std::vector<ParteOBJ> partes;
