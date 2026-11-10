@@ -1,22 +1,28 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.6.33829.357
+# Visual Studio Version 18
+VisualStudioVersion = 18.10.12224.181 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "La Pepo cumbia", "La Pepo cumbia\La Pepo cumbia.vcxproj", "{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
 		Debug|x64 = Debug|x64
 		Debug|x86 = Debug|x86
+		Release|Win32 = Release|Win32
 		Release|x64 = Release|x64
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}.Debug|Win32.ActiveCfg = Debug|Win32
+		{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}.Debug|Win32.Build.0 = Debug|Win32
 		{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}.Debug|x64.ActiveCfg = Debug|x64
 		{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}.Debug|x64.Build.0 = Debug|x64
 		{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}.Debug|x86.ActiveCfg = Debug|Win32
 		{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}.Debug|x86.Build.0 = Debug|Win32
+		{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}.Release|Win32.ActiveCfg = Release|Win32
+		{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}.Release|Win32.Build.0 = Release|Win32
 		{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}.Release|x64.ActiveCfg = Release|x64
 		{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}.Release|x64.Build.0 = Release|x64
 		{AD653DF8-20FA-4AF5-B6BA-EA25746443D7}.Release|x86.ActiveCfg = Release|Win32

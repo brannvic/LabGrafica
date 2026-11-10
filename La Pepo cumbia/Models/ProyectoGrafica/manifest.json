@@ -1,0 +1,22 @@
+{
+  "format": "Wavefront OBJ + MTL",
+  "source_root": "proyectoGrafica",
+  "models": [
+    { "id": "autobus", "source": "modelos-erick/autobus.blend" },
+    { "id": "balon", "source": "modelos-erick/balon.blend" },
+    { "id": "balon_animacion", "source": "modelos-erick/balonAnimacion.blend" },
+    { "id": "camera", "source": "modelos-erick/camera.blend" },
+    { "id": "scoreboard", "source": "modelos-erick/scoreboard.blend" },
+    { "id": "carrito_emergencias", "source": "modelos-jesus/carrito_emergencias.blend" },
+    { "id": "podio", "source": "modelos-jesus/podio.blend" },
+    { "id": "trofeo", "source": "modelos-jesus/trofeo.blend" },
+    { "id": "iluminador_estadio", "source": "modelos-uriel/Iluminador_Estadio.blend" },
+    { "id": "jugador_arbitro", "source": "modelos-uriel/JUGADOR_ARBITRO.blend" },
+    { "id": "porteria_texturizada", "source": "modelos-uriel/Porteria_texturizada.blend" },
+    { "id": "banca_dia_noche", "source": "modelos-vico/Banca_Dia_Noche.blend" },
+    { "id": "banca", "source": "modelos-vico/Banca.blend" },
+    { "id": "carrito", "source": "modelos-vico/Carrito.blend" },
+    { "id": "goyo", "source": "modelos-vico/Goyo.blend" },
+    { "id": "tiro_esquina", "source": "modelos-vico/tiro de equina.blend" }
+  ]
+}
