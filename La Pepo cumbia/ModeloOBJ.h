@@ -33,9 +33,9 @@ struct ParteOBJ {
 // con las bibliotecas de 32 y 64 bits que ya contiene el proyecto.
 class ModeloOBJ {
 public:
-    ModeloOBJ() : centro(0.0f), extensionMaxima(1.0f), cargado(false) {}
+    ModeloOBJ() : centro(0.0f), extensionMinima(0.0f), extensionMaxima(1.0f), cargado(false) {}
 
-    bool cargar(const std::string& ruta) {
+    bool cargar(const std::string& ruta, const std::string& filtroGrupo = std::string()) {
         std::ifstream archivo(ruta.c_str());
         if (!archivo.is_open()) {
             std::cerr << "No se pudo abrir el OBJ: " << ruta << std::endl;
@@ -48,7 +48,13 @@ public:
         std::map<std::string, std::vector<VerticeOBJ> > grupos;
         std::vector<std::string> ordenGrupos;
         std::map<std::string, size_t> indicesGrupo;
-        std::string materialActual = "default", archivoMaterial;
+        std::vector<std::string> prefijosFiltro;
+        if (!filtroGrupo.empty()) {
+            std::istringstream filtros(filtroGrupo);
+            std::string prefijo;
+            while (std::getline(filtros, prefijo, '|')) if (!prefijo.empty()) prefijosFiltro.push_back(prefijo);
+        }
+        std::string materialActual = "default", archivoMaterial, nombreGrupoOBJ;
         glm::vec3 minimo(1.0e30f), maximo(-1.0e30f);
 
         auto grupoActual = [&]() -> std::vector<VerticeOBJ>& {
@@ -74,10 +80,17 @@ public:
             } else if (tipo == "mtllib") {
                 std::getline(stream, archivoMaterial);
                 limpiar(archivoMaterial);
+            } else if (tipo == "g" || tipo == "o") {
+                std::getline(stream, nombreGrupoOBJ);
+                limpiar(nombreGrupoOBJ);
             } else if (tipo == "usemtl") {
                 std::getline(stream, materialActual);
                 limpiar(materialActual);
             } else if (tipo == "f") {
+                bool grupoPermitido = prefijosFiltro.empty();
+                for (size_t i = 0; !grupoPermitido && i < prefijosFiltro.size(); ++i)
+                    grupoPermitido = nombreGrupoOBJ.compare(0, prefijosFiltro[i].size(), prefijosFiltro[i]) == 0;
+                if (!grupoPermitido) continue;
                 std::vector<VerticeOBJ> cara;
                 std::string token;
                 while (stream >> token) {
@@ -111,6 +124,7 @@ public:
             return false;
         }
         centro = (minimo + maximo) * 0.5f;
+        extensionMinima = minimo;
         glm::vec3 tamano = maximo - minimo;
         extensionMaxima = glm::max(tamano.x, glm::max(tamano.y, tamano.z));
         if (extensionMaxima < 0.0001f) extensionMaxima = 1.0f;
@@ -148,12 +162,17 @@ public:
     }
 
     void dibujar(GLuint programa, const glm::mat4& vista, const glm::mat4& proyeccion,
-                 const glm::vec3& posicion, float tamanoObjetivo, float rotacionY, bool iluminacion) const {
+                 const glm::vec3& posicion, float tamanoObjetivo, float rotacionY, bool iluminacion,
+                 float rotacionX = 0.0f) const {
         if (!cargado) return;
         float escala = tamanoObjetivo / extensionMaxima;
         glm::mat4 modelo(1.0f);
-        modelo = glm::translate(modelo, posicion);
+        glm::vec3 posicionConSuelo = posicion;
+        // La posición de instancia representa el contacto del modelo con el suelo.
+        posicionConSuelo.y += (centro.y - extensionMinima.y) * escala;
+        modelo = glm::translate(modelo, posicionConSuelo);
         modelo = glm::rotate(modelo, glm::radians(rotacionY), glm::vec3(0, 1, 0));
+        modelo = glm::rotate(modelo, glm::radians(rotacionX), glm::vec3(1, 0, 0));
         modelo = glm::scale(modelo, glm::vec3(escala));
         modelo = glm::translate(modelo, -centro);
         glUniformMatrix4fv(glGetUniformLocation(programa, "model"), 1, GL_FALSE, glm::value_ptr(modelo));
@@ -185,6 +204,7 @@ public:
 private:
     std::vector<ParteOBJ> partes;
     glm::vec3 centro;
+    glm::vec3 extensionMinima;
     float extensionMaxima;
     bool cargado;
 
