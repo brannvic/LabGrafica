@@ -457,13 +457,14 @@ struct Caja { glm::vec3 centro, escala, color; };
 std::vector<float> geometriaEscenario;
 std::vector<Caja> cajas;
 bool teclas[1024] = {};
-bool primeraPersona = false, reflectores = true, animando = false;
+bool primeraPersona = false, camaraLibre = false, reflectores = true, animando = false;
 int golesLocal = 0, golesVisita = 0;
 float anguloMouseX = -90.0f, anguloMouseY = 43.0f;
-float zoomCamara = 165.0f;
+float zoomCamara = 100.0f;
 float campoVision = 55.0f;
 double mouseXAnterior = ANCHO_VENTANA / 2.0, mouseYAnterior = ALTO_VENTANA / 2.0;
 bool primerMovimientoMouse = true;
+glm::vec3 posicionCamaraLibre(0.0f, 48.0f, 112.0f);
 glm::vec3 jugador(-3.0f, 0.0f, 0.0f);
 glm::vec3 inicioJugada(-3.0f, 0.0f, 0.0f), objetivoJugada(-33.4f, 0.0f, 0.0f);
 glm::vec3 direccionTiro(-1.0f, 0.0f, 0.0f), lateralJugada(0.0f, 0.0f, -1.0f);
@@ -553,20 +554,29 @@ void cursor(GLFWwindow*, double x, double y) {
     if (primerMovimientoMouse) { mouseXAnterior = x; mouseYAnterior = y; primerMovimientoMouse = false; }
     float dx = (float)(x - mouseXAnterior), dy = (float)(mouseYAnterior - y); mouseXAnterior = x; mouseYAnterior = y;
     anguloMouseX += dx * 0.10f;
-    anguloMouseY = primeraPersona ? glm::clamp(anguloMouseY + dy * 0.10f, -85.0f, 85.0f) : glm::clamp(anguloMouseY + dy * 0.10f, 10.0f, 80.0f);
+    anguloMouseY = (primeraPersona || camaraLibre) ? glm::clamp(anguloMouseY + dy * 0.10f, -85.0f, 85.0f) : glm::clamp(anguloMouseY + dy * 0.10f, 10.0f, 80.0f);
 }
 
 void rueda(GLFWwindow*, double, double desplazamiento) {
-    if (primeraPersona) campoVision = glm::clamp(campoVision - (float)desplazamiento * 2.5f, 30.0f, 75.0f);
-    else zoomCamara = glm::clamp(zoomCamara - (float)desplazamiento * 14.0f, 45.0f, 320.0f);
+    if (camaraLibre) {
+        float yaw = glm::radians(anguloMouseX), pitch = glm::radians(anguloMouseY);
+        glm::vec3 direccion = glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch)));
+        posicionCamaraLibre += direccion * (float)desplazamiento * 8.0f;
+    }
+    else if (primeraPersona) campoVision = glm::clamp(campoVision - (float)desplazamiento * 2.5f, 30.0f, 75.0f);
+    else zoomCamara = glm::clamp(zoomCamara - (float)desplazamiento * 20.0f, 12.0f, 320.0f);
 }
 
 void tecla(GLFWwindow* w, int key, int, int action, int) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) glfwSetWindowShouldClose(w, GL_TRUE);
     if (key >= 0 && key < 1024) { if (action == GLFW_PRESS) teclas[key] = true; if (action == GLFW_RELEASE) teclas[key] = false; }
     if (action == GLFW_PRESS) {
-        if (key == GLFW_KEY_V) { primeraPersona = !primeraPersona; camaraAutobus = false; }
-        if (key == GLFW_KEY_T) { camaraAutobus = !camaraAutobus; primeraPersona = false; }
+        if (key == GLFW_KEY_V) { primeraPersona = !primeraPersona; camaraLibre = false; camaraAutobus = false; }
+        if (key == GLFW_KEY_C) {
+            camaraLibre = !camaraLibre; primeraPersona = false; camaraAutobus = false;
+            if (camaraLibre) { posicionCamaraLibre = glm::vec3(0.0f, 48.0f, 112.0f); anguloMouseX = -90.0f; anguloMouseY = -22.0f; }
+        }
+        if (key == GLFW_KEY_T) { camaraAutobus = !camaraAutobus; primeraPersona = false; camaraLibre = false; }
         if (key == GLFW_KEY_B) { posicionAutobus = glm::vec3(-78.0f, 0.0f, 48.0f); rumboAutobus = 90.0f; }
         if (key == GLFW_KEY_F) reflectores = !reflectores;
         if (key == GLFW_KEY_G) { golesLocal = (golesLocal + 1) % 100; std::cout << "Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl; }
@@ -582,15 +592,17 @@ void tecla(GLFWwindow* w, int key, int, int action, int) {
             lateralJugada = glm::normalize(glm::cross(direccionTiro, glm::vec3(0, 1, 0)));
             // Al iniciar, orientar la vista hacia la porteria de la jugada.
             anguloMouseX = glm::degrees(std::atan2(direccionTiro.z, direccionTiro.x));
-            tiempoAnimacion = 0.0f; animando = true; jugadaTerminada = false; camaraAutobus = false;
+            tiempoAnimacion = 0.0f; animando = true; jugadaTerminada = false; camaraAutobus = false; camaraLibre = false; primeraPersona = false;
         }
         if (key == GLFW_KEY_PAGE_UP || key == GLFW_KEY_KP_ADD || key == GLFW_KEY_EQUAL) {
-            if (primeraPersona) campoVision = glm::max(30.0f, campoVision - 4.0f); else zoomCamara = glm::max(45.0f, zoomCamara - 14.0f);
+            if (camaraLibre) { float yaw = glm::radians(anguloMouseX), pitch = glm::radians(anguloMouseY); posicionCamaraLibre += glm::normalize(glm::vec3(cos(yaw)*cos(pitch), sin(pitch), sin(yaw)*cos(pitch))) * 8.0f; }
+            else if (primeraPersona) campoVision = glm::max(30.0f, campoVision - 4.0f); else zoomCamara = glm::max(12.0f, zoomCamara - 20.0f);
         }
         if (key == GLFW_KEY_PAGE_DOWN || key == GLFW_KEY_KP_SUBTRACT || key == GLFW_KEY_MINUS) {
-            if (primeraPersona) campoVision = glm::min(75.0f, campoVision + 4.0f); else zoomCamara = glm::min(320.0f, zoomCamara + 14.0f);
+            if (camaraLibre) { float yaw = glm::radians(anguloMouseX), pitch = glm::radians(anguloMouseY); posicionCamaraLibre -= glm::normalize(glm::vec3(cos(yaw)*cos(pitch), sin(pitch), sin(yaw)*cos(pitch))) * 8.0f; }
+            else if (primeraPersona) campoVision = glm::min(75.0f, campoVision + 4.0f); else zoomCamara = glm::min(320.0f, zoomCamara + 20.0f);
         }
-        if (key == GLFW_KEY_HOME) { zoomCamara = 165.0f; campoVision = 55.0f; }
+        if (key == GLFW_KEY_HOME) { zoomCamara = 100.0f; campoVision = 55.0f; posicionCamaraLibre = glm::vec3(0.0f, 48.0f, 112.0f); anguloMouseX = -90.0f; anguloMouseY = -22.0f; }
     }
 }
 
@@ -616,7 +628,7 @@ int main() {
     if (!window) { glfwTerminate(); return -1; }
     glfwMakeContextCurrent(window); glfwSwapInterval(1); glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) { glfwDestroyWindow(window); glfwTerminate(); return -1; }
-    std::cout << "Controles: WASD mover jugador | flechas conducir autobus | T camara autobus | V primera persona | mouse mirar/orbitar | espacio jugada por keyframes (dos pases, remate y gol) | G/H marcador | R reiniciar jugada/marcador | F reflectores | B reiniciar autobus | ESC salir" << std::endl;
+    std::cout << "Controles: WASD jugador/camara libre | mouse mirar/orbitar | C camara libre (E/Q altura) | V primera/tercera persona | rueda o RePág/AvPág zoom | T camara autobus | flechas conducir autobus | espacio jugada | G/H marcador | R reiniciar | F reflectores | B autobus | ESC salir" << std::endl;
     glfwSetFramebufferSizeCallback(window, cambiarTamano); glfwSetKeyCallback(window, tecla); glfwSetCursorPosCallback(window, cursor); glfwSetScrollCallback(window, rueda);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE);
     GLuint programa = glCreateProgram(); GLuint vs = glCreateShader(GL_VERTEX_SHADER), fs = glCreateShader(GL_FRAGMENT_SHADER);
@@ -646,7 +658,69 @@ int main() {
     if (!texturaCruzAzul) std::cerr << "No se pudo cargar el uniforme Cruz Azul: Models/ProyectoGrafica/uniformes/cruz_azul.png" << std::endl;
     GLuint programaModelos = glCreateProgram(); GLuint modeloVS = glCreateShader(GL_VERTEX_SHADER), modeloFS = glCreateShader(GL_FRAGMENT_SHADER);
     std::string vertexModelo = "#version 330 core\nlayout(location=0) in vec3 p; layout(location=1) in vec3 n; layout(location=2) in vec2 uv; uniform mat4 model,view,projection; out vec3 world; out vec3 normalWorld; out vec2 texCoord; void main(){ vec4 wp=model*vec4(p,1.0); world=wp.xyz; normalWorld=mat3(transpose(inverse(model)))*n; texCoord=uv; gl_Position=projection*view*wp; }";
-    std::string fragmentModelo = "#version 330 core\nin vec3 world; in vec3 normalWorld; in vec2 texCoord; uniform sampler2D diffuseTexture; uniform vec3 materialColor; uniform vec3 teamColor; uniform int teamColorable; uniform int hasTexture; uniform int lamps; uniform vec3 spotPos[4]; uniform vec3 spotDir[4]; out vec4 fragColor; void main(){ vec3 base=hasTexture==1?texture(diffuseTexture,texCoord).rgb:materialColor; if(teamColorable==1) base=teamColor; vec3 normal=normalize(normalWorld); float illumination=lamps==1?0.24:0.20; if(lamps==1) for(int i=0;i<4;++i){ vec3 ray=world-spotPos[i]; float d=length(ray); float cone=dot(normalize(ray),normalize(spotDir[i])); float beam=smoothstep(0.28,0.78,cone); float diffuse=max(dot(normal,normalize(-ray)),0.0); illumination+=beam*diffuse*2.0/(1.0+0.006*d+0.00025*d*d); } fragColor=vec4(base*clamp(illumination,0.20,1.55),1.0); }";
+    std::string fragmentModelo = R"GLSL(#version 330 core
+in vec3 world;
+in vec3 normalWorld;
+in vec2 texCoord;
+uniform sampler2D diffuseTexture;
+uniform vec3 materialColor;
+uniform vec3 teamColor;
+uniform int teamColorable;
+uniform int hasTexture;
+uniform int lamps;
+uniform vec3 spotPos[4];
+uniform vec3 spotDir[4];
+out vec4 fragColor;
+
+float ruido(vec3 p) {
+    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+}
+
+vec3 texturaArquitectura(vec3 base) {
+    vec3 celda = floor(world * 7.0);
+    float grano = ruido(celda) - 0.5;
+    float juntaX = 1.0 - smoothstep(0.006, 0.022, abs(fract(world.x * 0.12) - 0.5));
+    float juntaZ = 1.0 - smoothstep(0.006, 0.022, abs(fract(world.z * 0.12) - 0.5));
+    float juntaY = 1.0 - smoothstep(0.004, 0.018, abs(fract(world.y * 0.22) - 0.5));
+    float juntas = max(max(juntaX, juntaZ), juntaY);
+
+    float gris = step(0.28, materialColor.r) * (1.0 - step(0.82, materialColor.r))
+               * (1.0 - smoothstep(0.10, 0.24, abs(materialColor.r - materialColor.g)))
+               * (1.0 - smoothstep(0.10, 0.24, abs(materialColor.g - materialColor.b)));
+    float blanco = step(0.82, materialColor.r) * step(0.82, materialColor.g) * step(0.82, materialColor.b);
+    float rojo = step(materialColor.g * 2.0 + 0.08, materialColor.r) * step(materialColor.b * 2.0 + 0.08, materialColor.r);
+
+    vec3 concreto = base * (0.94 + grano * 0.075);
+    concreto *= 1.0 - juntas * 0.22;
+    float panelTecho = 0.5 + 0.5 * sin(world.x * 0.16 + sin(world.z * 0.055));
+    vec3 techo = base * (0.94 + panelTecho * 0.08 + grano * 0.025);
+    techo *= 1.0 - max(juntaX, juntaZ) * 0.12;
+    float ritmoRojo = 0.96 + 0.04 * step(0.5, fract(world.y * 0.13));
+    vec3 panelRojo = base * ritmoRojo * (0.97 + grano * 0.035);
+
+    vec3 acabado = mix(base, concreto, gris);
+    acabado = mix(acabado, techo, blanco);
+    acabado = mix(acabado, panelRojo, rojo);
+    return acabado;
+}
+
+void main() {
+    vec3 base = hasTexture == 1 ? texture(diffuseTexture, texCoord).rgb : materialColor;
+    if (teamColorable == 1) base = teamColor;
+    else if (hasTexture == 0) base = texturaArquitectura(base);
+    vec3 normal = normalize(normalWorld);
+    float illumination = lamps == 1 ? 0.24 : 0.20;
+    if (lamps == 1) for (int i = 0; i < 4; ++i) {
+        vec3 ray = world - spotPos[i];
+        float d = length(ray);
+        float cone = dot(normalize(ray), normalize(spotDir[i]));
+        float beam = smoothstep(0.28, 0.78, cone);
+        float diffuse = max(dot(normal, normalize(-ray)), 0.0);
+        illumination += beam * diffuse * 2.0 / (1.0 + 0.006 * d + 0.00025 * d * d);
+    }
+    fragColor = vec4(base * clamp(illumination, 0.20, 1.55), 1.0);
+}
+)GLSL";
     const char* mv = vertexModelo.c_str(); const char* mf = fragmentModelo.c_str(); glShaderSource(modeloVS, 1, &mv, nullptr); glShaderSource(modeloFS, 1, &mf, nullptr); glCompileShader(modeloVS); glCompileShader(modeloFS);
     glAttachShader(programaModelos, modeloVS); glAttachShader(programaModelos, modeloFS); glLinkProgram(programaModelos);
     glDeleteShader(modeloVS); glDeleteShader(modeloFS);
@@ -744,7 +818,19 @@ int main() {
         instancias[0].posicion = posicionAutobus;
         instancias[0].rotacion = rumboAutobus;
 
-        if (!animando) {
+        if (camaraLibre) {
+            const float velocidadCamaraLibre = 32.0f;
+            glm::vec3 frenteLibre(cos(yaw), 0.0f, sin(yaw));
+            glm::vec3 derechaLibre = glm::normalize(glm::cross(frenteLibre, glm::vec3(0, 1, 0)));
+            if (teclas[GLFW_KEY_W]) posicionCamaraLibre += frenteLibre * dt * velocidadCamaraLibre;
+            if (teclas[GLFW_KEY_S]) posicionCamaraLibre -= frenteLibre * dt * velocidadCamaraLibre;
+            if (teclas[GLFW_KEY_A]) posicionCamaraLibre -= derechaLibre * dt * velocidadCamaraLibre;
+            if (teclas[GLFW_KEY_D]) posicionCamaraLibre += derechaLibre * dt * velocidadCamaraLibre;
+            if (teclas[GLFW_KEY_E]) posicionCamaraLibre.y += dt * velocidadCamaraLibre;
+            if (teclas[GLFW_KEY_Q]) posicionCamaraLibre.y -= dt * velocidadCamaraLibre;
+            posicionCamaraLibre.y = glm::max(2.0f, posicionCamaraLibre.y);
+        }
+        else if (!animando) {
             if (teclas[GLFW_KEY_W]) jugador += frente * dt * velocidadJugador;
             if (teclas[GLFW_KEY_S]) jugador -= frente * dt * velocidadJugador;
             if (teclas[GLFW_KEY_A]) jugador -= derecha * dt * velocidadJugador;
@@ -754,6 +840,7 @@ int main() {
         if (animando) { tiempoAnimacion += dt; if (tiempoAnimacion >= 4.2f) { tiempoAnimacion = 4.2f; animando = false; jugadaTerminada = true; golesLocal = (golesLocal + 1) % 100; } }
         glm::vec3 posCam, objetivo;
         if (primeraPersona) { posCam = jugador + glm::vec3(0, 1.7f, 0); float pitch = glm::radians(anguloMouseY); glm::vec3 f = glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch))); objetivo = posCam + f; }
+        else if (camaraLibre) { posCam = posicionCamaraLibre; float pitch = glm::radians(anguloMouseY); glm::vec3 f = glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch))); objetivo = posCam + f; }
         else {
             glm::vec3 centroCamaraJugada = (animando || jugadaTerminada) ? glm::mix(inicioJugada, objetivoJugada, glm::clamp(tiempoAnimacion / 3.2f, 0.0f, 1.0f)) : jugador;
             objetivo = (camaraAutobus ? posicionAutobus : centroCamaraJugada) + glm::vec3(0, 2.0f, 0);
