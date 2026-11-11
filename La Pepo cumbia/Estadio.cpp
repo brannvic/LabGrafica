@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <string>
+#include <utility>
 #include "ModeloOBJ.h"
 
 #include <GL/glew.h>
@@ -456,6 +457,9 @@ void construirCancha()
 struct Caja { glm::vec3 centro, escala, color; };
 std::vector<float> geometriaEscenario;
 std::vector<Caja> cajas;
+std::vector<Caja> vallasPublicidad;
+std::vector<Caja> fondosTifo;
+std::vector<float> geometriaConos;
 bool teclas[1024] = {};
 bool primeraPersona = false, camaraLibre = false, reflectores = true, animando = false;
 int golesLocal = 0, golesVisita = 0;
@@ -470,6 +474,7 @@ glm::vec3 inicioJugada(-3.0f, 0.0f, 0.0f), objetivoJugada(-33.4f, 0.0f, 0.0f);
 glm::vec3 direccionTiro(-1.0f, 0.0f, 0.0f), lateralJugada(0.0f, 0.0f, -1.0f);
 float distanciaJugada = 30.4f;
 bool jugadaTerminada = false;
+bool marcadorJugadaActualizado = false;
 // El autobus empieza en el acceso exterior y se conduce con las flechas.
 glm::vec3 posicionAutobus(-78.0f, 0.0f, 48.0f);
 float rumboAutobus = 90.0f;
@@ -479,22 +484,32 @@ float tiempoAnimacion = 0.0f;
 struct KeyframeBalon { float tiempo, avance, altura, lateral; };
 // Progreso relativo al recorrido a porteria: pase 1, pase 2 y remate elevado.
 const KeyframeBalon keyframesBalon[] = {
-    {0.00f,0.03f,0.22f,0.0f}, {0.22f,0.03f,0.22f,0.0f},
-    {0.62f,0.20f,0.30f,8.0f}, {0.88f,0.20f,0.30f,8.0f},
-    {1.30f,0.48f,0.30f,-7.0f}, {2.22f,0.48f,0.30f,-7.0f},
-    {2.34f,0.86f,0.55f,0.0f}, {2.72f,0.96f,3.40f,1.0f},
-    {3.05f,1.02f,1.05f,0.0f}, {3.35f,1.07f,0.22f,0.0f},
-    {4.20f,1.07f,0.22f,0.0f}
+    {0.00f,0.03f,0.22f,0.0f}, {0.28f,0.03f,0.22f,0.0f},
+    {1.20f,0.20f,0.30f,8.0f}, {1.55f,0.20f,0.30f,8.0f},
+    {2.60f,0.48f,0.30f,-4.5f}, {2.80f,0.48f,0.22f,-4.5f},
+    {4.65f,0.86f,0.22f,0.0f}, {4.78f,0.90f,0.55f,-0.4f},
+    {5.00f,0.96f,1.80f,-1.2f}, {5.22f,1.00f,1.95f,-1.8f},
+    {5.42f,1.02f,0.75f,-1.8f}, {5.62f,1.015f,0.38f,-1.6f},
+    {6.50f,1.015f,0.22f,-1.6f}
 };
 struct KeyframeJugador { float tiempo, caderaDer, rodillaDer, tobilloDer, caderaIzq, rodillaIzq, tobilloIzq, brazos; };
 const KeyframeJugador keyframesJugador[] = {
-    {0.00f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,   0.0f},
-    {0.22f, 20.0f, 12.0f, -4.0f, -8.0f,  2.0f,  0.0f, -10.0f},
-    {0.42f,-30.0f,-12.0f,  4.0f,  8.0f,  2.0f,  0.0f,  15.0f},
-    {0.72f,-58.0f, -8.0f,  2.0f,  5.0f,  0.0f,  0.0f,  20.0f},
-    {1.08f,-34.0f, -4.0f,  1.0f,  0.0f,  0.0f,  0.0f,   8.0f},
-    {1.52f,-10.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,   2.0f},
-    {2.20f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,  0.0f,   0.0f}
+    {0.00f,  0.0f,  0.0f, 0.0f,  0.0f, 0.0f, 0.0f,   0.0f},
+    {0.16f, 18.0f,  8.0f,-2.0f, -6.0f, 1.0f, 0.0f, -10.0f},
+    {0.30f,-34.0f,-16.0f, 5.0f, 10.0f, 2.0f, 0.0f,  17.0f},
+    {0.46f,-52.0f,-10.0f, 3.0f,  8.0f, 1.0f, 0.0f,  21.0f},
+    {0.66f,-28.0f, -3.0f, 1.0f,  2.0f, 0.0f, 0.0f,   8.0f},
+    {0.92f, -5.0f,  0.0f, 0.0f,  0.0f, 0.0f, 0.0f,   1.0f},
+    {1.25f,  0.0f,  0.0f, 0.0f,  0.0f, 0.0f, 0.0f,   0.0f}
+};
+struct KeyframeCarrera { float fase, paso, rodillaDer, rodillaIzq, brazos; };
+// Un ciclo de carrera en cuatro poses. La interpolacion ciclica Catmull-Rom
+// conserva velocidad entre poses y evita el vaiven sinusoidal mecanico.
+const KeyframeCarrera keyframesCarrera[] = {
+    {0.00f, -18.0f, 20.0f,  0.0f,  11.0f},
+    {0.25f,   0.0f,  5.0f,  8.0f,   0.0f},
+    {0.50f,  18.0f,  0.0f, 22.0f, -11.0f},
+    {0.75f,   0.0f, 12.0f,  0.0f,   0.0f}
 };
 const glm::vec3 AMARILLO(0.95f, 0.72f, 0.12f), AZUL(0.04f, 0.25f, 0.82f);
 enum ModeloArticulado {
@@ -504,6 +519,92 @@ enum ModeloArticulado {
 
 void agregarCaja(float x, float y, float z, float sx, float sy, float sz, glm::vec3 c) {
     cajas.push_back({ glm::vec3(x,y,z), glm::vec3(sx,sy,sz), c });
+}
+
+void agregarVerticeCono(glm::vec3 p, glm::vec3 color) {
+    geometriaConos.insert(geometriaConos.end(), { p.x, p.y, p.z, color.r, color.g, color.b });
+}
+
+void agregarTrianguloCono(glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 color) {
+    agregarVerticeCono(a, color); agregarVerticeCono(b, color); agregarVerticeCono(c, color);
+}
+
+void agregarConoEntrenamiento(float x, float z) {
+    const int segmentos = 12;
+    const float yBase = 0.075f, yHombro = 0.29f, yBanda = 0.37f, yPunta = 0.60f;
+    const float radioBase = 0.23f, radioHombro = 0.15f, radioBanda = 0.115f;
+    const glm::vec3 naranja(1.0f, 0.24f, 0.025f), blanco(0.96f, 0.96f, 0.88f);
+    glm::vec3 punta(x, yPunta, z), centroBase(x, yBase, z);
+    for (int i = 0; i < segmentos; ++i) {
+        float a0 = 2.0f * PI * i / segmentos, a1 = 2.0f * PI * (i + 1) / segmentos;
+        auto punto = [&](float angulo, float y, float radio) { return glm::vec3(x + cos(angulo) * radio, y, z + sin(angulo) * radio); };
+        glm::vec3 b0 = punto(a0, yBase, radioBase), b1 = punto(a1, yBase, radioBase);
+        glm::vec3 h0 = punto(a0, yHombro, radioHombro), h1 = punto(a1, yHombro, radioHombro);
+        glm::vec3 w0 = punto(a0, yBanda, radioBanda), w1 = punto(a1, yBanda, radioBanda);
+        agregarTrianguloCono(centroBase, b1, b0, naranja);
+        agregarTrianguloCono(b0, b1, h1, naranja); agregarTrianguloCono(b0, h1, h0, naranja);
+        agregarTrianguloCono(h0, h1, w1, blanco); agregarTrianguloCono(h0, w1, w0, blanco);
+        agregarTrianguloCono(w0, w1, punta, naranja);
+    }
+}
+
+void construirVallasYConos() {
+    vallasPublicidad.clear(); fondosTifo.clear(); geometriaConos.clear();
+    const glm::vec3 marco(0.035f, 0.045f, 0.065f), blanco(0.92f, 0.94f, 0.90f);
+    const glm::vec3 marcas[] = {
+        glm::vec3(0.05f,0.62f,0.88f), glm::vec3(0.88f,0.12f,0.08f),
+        glm::vec3(0.95f,0.58f,0.04f), glm::vec3(0.08f,0.56f,0.24f),
+        glm::vec3(0.48f,0.12f,0.72f), glm::vec3(0.02f,0.64f,0.66f)
+    };
+    auto agregarPiezaValla = [&](glm::vec3 centro, glm::vec3 escala, glm::vec3 color) {
+        vallasPublicidad.push_back({ centro, escala, color });
+        };
+    auto agregarAnuncio = [&](float x, float z, bool orientadoX, int indice) {
+        const float largo = orientadoX ? 5.1f : 4.6f;
+        const float alto = 1.42f, y = 0.98f;
+        glm::vec3 normal = orientadoX ? glm::vec3(0, 0, z > 0.0f ? -1.0f : 1.0f)
+            : glm::vec3(x > 0.0f ? -1.0f : 1.0f, 0, 0);
+        glm::vec3 centro(x, y, z), escalaMarco = orientadoX ? glm::vec3(largo, alto, 0.38f) : glm::vec3(0.38f, alto, largo);
+        agregarPiezaValla(centro, escalaMarco, marco);
+        glm::vec3 cara = centro + normal * 0.205f;
+        glm::vec3 escalaCara = orientadoX ? glm::vec3(largo - 0.18f, alto - 0.18f, 0.055f) : glm::vec3(0.055f, alto - 0.18f, largo - 0.18f);
+        agregarPiezaValla(cara, escalaCara, marcas[indice % 6]);
+        glm::vec3 escalaFranja = orientadoX ? glm::vec3(largo - 0.18f, 0.12f, 0.065f) : glm::vec3(0.065f, 0.12f, largo - 0.18f);
+        glm::vec3 franjaSuperior = cara + glm::vec3(0, 0.56f, 0) + normal * 0.035f;
+        glm::vec3 franjaInferior = cara + glm::vec3(0, -0.56f, 0) + normal * 0.035f;
+        agregarPiezaValla(franjaSuperior, escalaFranja, blanco);
+        agregarPiezaValla(franjaInferior, escalaFranja, (indice % 2 == 0) ? marcas[(indice + 1) % 6] : blanco);
+        glm::vec3 escalaLogo = orientadoX ? glm::vec3(0.52f, 0.48f, 0.07f) : glm::vec3(0.07f, 0.48f, 0.52f);
+        glm::vec3 logo = cara + normal * 0.07f;
+        agregarPiezaValla(logo, escalaLogo, blanco);
+        glm::vec3 escalaTexto = orientadoX ? glm::vec3(0.82f, 0.075f, 0.075f) : glm::vec3(0.075f, 0.075f, 0.82f);
+        for (int lado = -1; lado <= 1; lado += 2) {
+            glm::vec3 linea = logo + normal * 0.015f;
+            if (orientadoX) linea.x += lado * 1.25f; else linea.z += lado * 1.25f;
+            agregarPiezaValla(linea, escalaTexto, blanco);
+        }
+        };
+
+    // Laterales con paneles separados: el tramo central queda libre para bancas y entrenamiento.
+    const float centrosLaterales[] = { -31.0f,-25.0f,-19.0f,19.0f,25.0f,31.0f };
+    int indice = 0;
+    for (float z : { -23.7f, 23.7f }) for (float x : centrosLaterales) agregarAnuncio(x, z, true, indice++);
+    // Cabeceras: se deja el hueco central para cada porteria y su red.
+    const float centrosCabecera[] = { -18.0f,-12.0f,-6.0f,6.0f,12.0f,18.0f };
+    // Se alejan las cabeceras para dejar espacio a la porteria y su red.
+    for (float x : { -43.5f, 43.5f }) for (float z : centrosCabecera) agregarAnuncio(x, z, false, indice++);
+
+    // Tifos elevados en las cabeceras, hacia el interior del estadio.
+    // Cada escudo se dibuja como textura sobre un paño de los colores del equipo.
+    fondosTifo.push_back({ glm::vec3(-38.5f, 14.5f, 0.0f), glm::vec3(0.45f, 10.0f, 16.0f), glm::vec3(0.035f, 0.055f, 0.24f) });
+    fondosTifo.push_back({ glm::vec3(38.5f, 14.5f, 0.0f), glm::vec3(0.45f, 10.0f, 16.0f), glm::vec3(0.80f, 0.58f, 0.12f) });
+
+    // Conos en las dos zonas tecnicas, delante de las bancas y fuera de la cancha.
+    const float posicionesX[] = { -12.0f,-8.0f,-4.0f,4.0f,8.0f,12.0f };
+    for (int lado : { -1, 1 }) for (int i = 0; i < 6; ++i) {
+        float z = lado * (23.0f + (i % 2) * 1.35f);
+        agregarConoEntrenamiento(posicionesX[i], z);
+    }
 }
 
 void agregarTriangulo(glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 color) {
@@ -523,6 +624,13 @@ void agregarCilindroVertical(float x, float z, float radio, float alto, glm::vec
 
 void construirEscenario() {
     construirCancha();
+    // El estadio y los jugadores usan X como eje largo del campo; la cancha
+    // se definio localmente con el largo en Z, asi que la giramos al guardar.
+    // El pequeño alzado evita que el piso verde del modelo importado la tape.
+    for (size_t i = 0; i + 5 < vertices.size(); i += 6) {
+        std::swap(vertices[i], vertices[i + 2]);
+        vertices[i + 1] += 0.06f;
+    }
     glm::vec3 gris(0.28f, 0.32f, 0.38f), concreto(0.42f, 0.43f, 0.40f), blanco(0.96f);
     // Zona 2: gradas en ambos laterales, con pasillos y asientos en niveles.
     for (int lado = -1;lado <= 1;lado += 2) {
@@ -581,7 +689,7 @@ void tecla(GLFWwindow* w, int key, int, int action, int) {
         if (key == GLFW_KEY_F) reflectores = !reflectores;
         if (key == GLFW_KEY_G) { golesLocal = (golesLocal + 1) % 100; std::cout << "Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl; }
         if (key == GLFW_KEY_H) { golesVisita = (golesVisita + 1) % 100; std::cout << "Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl; }
-        if (key == GLFW_KEY_R) { golesLocal = golesVisita = 0; animando = false; jugadaTerminada = false; tiempoAnimacion = 0.0f; }
+        if (key == GLFW_KEY_R) { golesLocal = golesVisita = 0; animando = false; jugadaTerminada = false; marcadorJugadaActualizado = false; tiempoAnimacion = 0.0f; }
         if (key == GLFW_KEY_SPACE) {
             inicioJugada = jugador;
             objetivoJugada = glm::vec3(jugador.x <= 0.0f ? -33.4f : 33.4f, 0.0f, 0.0f);
@@ -592,14 +700,14 @@ void tecla(GLFWwindow* w, int key, int, int action, int) {
             lateralJugada = glm::normalize(glm::cross(direccionTiro, glm::vec3(0, 1, 0)));
             // Al iniciar, orientar la vista hacia la porteria de la jugada.
             anguloMouseX = glm::degrees(std::atan2(direccionTiro.z, direccionTiro.x));
-            tiempoAnimacion = 0.0f; animando = true; jugadaTerminada = false; camaraAutobus = false; camaraLibre = false; primeraPersona = false;
+            tiempoAnimacion = 0.0f; animando = true; jugadaTerminada = false; marcadorJugadaActualizado = false; camaraAutobus = false; camaraLibre = false; primeraPersona = false;
         }
         if (key == GLFW_KEY_PAGE_UP || key == GLFW_KEY_KP_ADD || key == GLFW_KEY_EQUAL) {
-            if (camaraLibre) { float yaw = glm::radians(anguloMouseX), pitch = glm::radians(anguloMouseY); posicionCamaraLibre += glm::normalize(glm::vec3(cos(yaw)*cos(pitch), sin(pitch), sin(yaw)*cos(pitch))) * 8.0f; }
+            if (camaraLibre) { float yaw = glm::radians(anguloMouseX), pitch = glm::radians(anguloMouseY); posicionCamaraLibre += glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch))) * 8.0f; }
             else if (primeraPersona) campoVision = glm::max(30.0f, campoVision - 4.0f); else zoomCamara = glm::max(12.0f, zoomCamara - 20.0f);
         }
         if (key == GLFW_KEY_PAGE_DOWN || key == GLFW_KEY_KP_SUBTRACT || key == GLFW_KEY_MINUS) {
-            if (camaraLibre) { float yaw = glm::radians(anguloMouseX), pitch = glm::radians(anguloMouseY); posicionCamaraLibre -= glm::normalize(glm::vec3(cos(yaw)*cos(pitch), sin(pitch), sin(yaw)*cos(pitch))) * 8.0f; }
+            if (camaraLibre) { float yaw = glm::radians(anguloMouseX), pitch = glm::radians(anguloMouseY); posicionCamaraLibre -= glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch))) * 8.0f; }
             else if (primeraPersona) campoVision = glm::min(75.0f, campoVision + 4.0f); else zoomCamara = glm::min(320.0f, zoomCamara + 20.0f);
         }
         if (key == GLFW_KEY_HOME) { zoomCamara = 100.0f; campoVision = 55.0f; posicionCamaraLibre = glm::vec3(0.0f, 48.0f, 112.0f); anguloMouseX = -90.0f; anguloMouseY = -22.0f; }
@@ -633,29 +741,95 @@ int main() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); glEnable(GL_DEPTH_TEST); glDisable(GL_CULL_FACE);
     GLuint programa = glCreateProgram(); GLuint vs = glCreateShader(GL_VERTEX_SHADER), fs = glCreateShader(GL_FRAGMENT_SHADER);
     std::string vert = "#version 330 core\nlayout(location=0) in vec3 p; layout(location=1) in vec3 inputColor; uniform mat4 model,view,projection; out vec3 world; out vec3 vertexColor; void main(){ vec4 w=model*vec4(p,1); world=w.xyz; vertexColor=inputColor; gl_Position=projection*view*w;}";
-    std::string frag = "#version 330 core\nin vec3 world; in vec3 vertexColor; uniform vec3 tint; uniform int field; uniform int lamps; uniform int uiMode; uniform vec3 spotPos[4]; uniform vec3 spotDir[4]; uniform sampler2D grassTexture; out vec4 color; float stadiumLight(vec3 normal){ if(lamps==0) return 0.20; float result=0.24; for(int i=0;i<4;++i){ vec3 ray=world-spotPos[i]; float d=length(ray); float cone=dot(normalize(ray),normalize(spotDir[i])); float beam=smoothstep(0.28,0.78,cone); float diffuse=max(dot(normal,normalize(-ray)),0.0); result+=beam*diffuse*2.0/(1.0+0.006*d+0.00025*d*d); } return clamp(result,0.20,1.55); } void main(){ float stripe=mod(floor((world.z+52.5)/10.5),2.0); vec3 texel=texture(grassTexture,world.xz*0.045).rgb*mix(0.82,1.0,stripe); float isLine=step(0.80,min(vertexColor.r,min(vertexColor.g,vertexColor.b))); vec3 c=(field==1)?mix(texel,vertexColor,isLine):tint; float illumination=uiMode==1?1.0:stadiumLight(vec3(0,1,0)); color=vec4(c*illumination,1.0); }";
+    std::string frag = "#version 330 core\nin vec3 world; in vec3 vertexColor; uniform vec3 tint; uniform int field; uniform int lamps; uniform int uiMode; uniform vec3 spotPos[4]; uniform vec3 spotDir[4]; uniform sampler2D grassTexture; out vec4 color; float stadiumLight(vec3 normal){ if(lamps==0) return 0.20; float result=0.24; for(int i=0;i<4;++i){ vec3 ray=world-spotPos[i]; float d=length(ray); float cone=dot(normalize(ray),normalize(spotDir[i])); float beam=smoothstep(0.28,0.78,cone); float diffuse=max(dot(normal,normalize(-ray)),0.0); result+=beam*diffuse*2.0/(1.0+0.006*d+0.00025*d*d); } return clamp(result,0.20,1.55); } void main(){ float stripe=mod(floor((world.z+52.5)/10.5),2.0); vec3 texel=texture(grassTexture,world.xz*0.20).rgb*mix(0.64,1.0,stripe); float isLine=step(0.80,min(vertexColor.r,min(vertexColor.g,vertexColor.b))); vec3 c=(field==2)?vertexColor:((field==1)?mix(texel,vertexColor,isLine):tint); float illumination=uiMode==1?1.0:max(0.55,stadiumLight(vec3(0,1,0))); color=vec4(c*illumination,1.0); }";
     const char* v = vert.c_str(); const char* f = frag.c_str(); glShaderSource(vs, 1, &v, nullptr); glShaderSource(fs, 1, &f, nullptr); glCompileShader(vs); glCompileShader(fs);
     GLint ok = 0; glGetShaderiv(vs, GL_COMPILE_STATUS, &ok); if (!ok) std::cerr << "Vertex shader compilation failed\n";
     glGetShaderiv(fs, GL_COMPILE_STATUS, &ok); if (!ok) std::cerr << "Fragment shader compilation failed\n";
     glAttachShader(programa, vs); glAttachShader(programa, fs); glLinkProgram(programa); glGetProgramiv(programa, GL_LINK_STATUS, &ok);
     if (!ok) std::cerr << "Shader link failed\n"; glDeleteShader(vs); glDeleteShader(fs);
-    GLuint vao, vbo, cuboVao, cuboVbo; glGenVertexArrays(1, &vao); glGenBuffers(1, &vbo); glBindVertexArray(vao);
+    construirVallasYConos();
+    GLuint vao, vbo, cuboVao, cuboVbo, conosVao, conosVbo, fuegosVao, fuegosVbo; glGenVertexArrays(1, &vao); glGenBuffers(1, &vbo); glBindVertexArray(vao);
     glBindBuffer(GL_ARRAY_BUFFER, vbo); glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0); glEnableVertexAttribArray(0);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
     glGenVertexArrays(1, &cuboVao); glGenBuffers(1, &cuboVbo); glBindVertexArray(cuboVao); glBindBuffer(GL_ARRAY_BUFFER, cuboVbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(cubo), cubo, GL_STATIC_DRAW); glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0); glEnableVertexAttribArray(0);
-    // Textura procedural de cesped repetible: muestreo real mediante sampler2D en GLSL.
-    unsigned char cesped[8 * 8 * 3];
-    for (int y = 0;y < 8;++y) for (int x = 0;x < 8;++x) { int k = (y * 8 + x) * 3; bool claro = ((x + y) % 2) == 0; cesped[k] = (unsigned char)(claro ? 76 : 54); cesped[k + 1] = (unsigned char)(claro ? 137 : 111); cesped[k + 2] = (unsigned char)(claro ? 52 : 43); }
+    glGenVertexArrays(1, &conosVao); glGenBuffers(1, &conosVbo); glBindVertexArray(conosVao); glBindBuffer(GL_ARRAY_BUFFER, conosVbo);
+    glBufferData(GL_ARRAY_BUFFER, geometriaConos.size() * sizeof(float), geometriaConos.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0); glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
+    glBindVertexArray(cuboVao);
+    glGenVertexArrays(1, &fuegosVao); glGenBuffers(1, &fuegosVbo); glBindVertexArray(fuegosVao); glBindBuffer(GL_ARRAY_BUFFER, fuegosVbo);
+    glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0); glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
+    glBindVertexArray(cuboVao);
+    GLuint tifoVao, tifoVbo;
+    // Textura procedural repetible de césped: ruido fino, manchones y fibras.
+    // El patrón se genera en memoria para no depender de archivos de imagen externos.
+    const int TAMANO_CESPED = 128;
+    unsigned char cesped[TAMANO_CESPED * TAMANO_CESPED * 3];
+    auto canalCesped = [](float valor) {
+        if (valor < 0.0f) valor = 0.0f;
+        if (valor > 255.0f) valor = 255.0f;
+        return (unsigned char)(valor + 0.5f);
+        };
+    for (int y = 0; y < TAMANO_CESPED; ++y) {
+        for (int x = 0; x < TAMANO_CESPED; ++x) {
+            unsigned int hash = (unsigned int)x * 374761393u + (unsigned int)y * 668265263u;
+            hash = (hash ^ (hash >> 13)) * 1274126177u;
+            float ruido = ((float)(hash & 0xffffu) / 32767.5f) - 1.0f;
+            float manchon = sinf(x * 0.105f + sinf(y * 0.075f) * 2.2f) *
+                cosf(y * 0.09f + sinf(x * 0.06f) * 1.7f);
+            float fibra = sinf(x * 0.78f + y * 0.16f + sinf(y * 0.12f) * 2.0f);
+            float variacion = manchon * 13.0f + fibra * 10.0f + ruido * 9.0f;
+            int k = (y * TAMANO_CESPED + x) * 3;
+            cesped[k + 0] = canalCesped(45.0f + variacion * 0.90f);
+            cesped[k + 1] = canalCesped(104.0f + manchon * 19.0f + fibra * 17.0f + ruido * 15.0f);
+            cesped[k + 2] = canalCesped(34.0f + manchon * 8.0f + fibra * 6.0f + ruido * 6.0f);
+        }
+    }
     GLuint texturaCesped; glGenTextures(1, &texturaCesped); glBindTexture(GL_TEXTURE_2D, texturaCesped);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 8, 8, 0, GL_RGB, GL_UNSIGNED_BYTE, cesped); glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, TAMANO_CESPED, TAMANO_CESPED, 0, GL_RGB, GL_UNSIGNED_BYTE, cesped); glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     GLuint texturaAtlas = SOIL_load_OGL_texture("Models/ProyectoGrafica/uniformes/atlas.png", SOIL_LOAD_AUTO, SOIL_CREATE_NEW_ID, SOIL_FLAG_INVERT_Y);
     GLuint texturaCruzAzul = SOIL_load_OGL_texture("Models/ProyectoGrafica/uniformes/cruz_azul.png", SOIL_LOAD_AUTO, SOIL_CREATE_NEW_ID, SOIL_FLAG_INVERT_Y);
+    auto cargarTexturaTifo = [](const std::vector<std::string>& nombres) {
+        const std::vector<std::string> carpetas = { "Tifos/", "../Tifos/", "../../Tifos/" };
+        for (const std::string& carpeta : carpetas) for (const std::string& nombre : nombres) {
+            const std::string ruta = carpeta + nombre;
+            GLuint textura = SOIL_load_OGL_texture(ruta.c_str(), SOIL_LOAD_AUTO, SOIL_CREATE_NEW_ID, SOIL_FLAG_INVERT_Y);
+            if (textura) { std::cout << "Tifo cargado: " << ruta << std::endl; return textura; }
+        }
+        return (GLuint)0;
+        };
+    GLuint texturaTifoCruz = cargarTexturaTifo({ "escudo_cruz_azul.png", "cruz_azul.png", "Cruz Azul.png", "codex-clipboard-18ce7427-98b2-428b-b7f1-973176e6dda8.png" });
+    GLuint texturaTifoPumas = cargarTexturaTifo({ "escudo_pumas.png", "pumas.png", "Pumas.png", "codex-clipboard-3d162b78-de82-48ef-84f8-f040064e9075.png" });
     if (!texturaAtlas) std::cerr << "No se pudo cargar el uniforme Atlas: Models/ProyectoGrafica/uniformes/atlas.png" << std::endl;
     if (!texturaCruzAzul) std::cerr << "No se pudo cargar el uniforme Cruz Azul: Models/ProyectoGrafica/uniformes/cruz_azul.png" << std::endl;
+    if (!texturaTifoCruz) std::cerr << "No se pudo cargar el tifo de Cruz Azul" << std::endl;
+    if (!texturaTifoPumas) std::cerr << "No se pudo cargar el tifo de Pumas" << std::endl;
+
+    std::vector<float> verticesTifo;
+    auto agregaVerticeTifo = [&](glm::vec3 p, glm::vec3 n, glm::vec2 uv) {
+        verticesTifo.insert(verticesTifo.end(), { p.x,p.y,p.z,n.x,n.y,n.z,uv.x,uv.y });
+        };
+    auto agregaPlanoTifo = [&](float x, float y, float z, float ancho, float alto, float normalX) {
+        float z0 = z - ancho * 0.5f, z1 = z + ancho * 0.5f;
+        float y0 = y - alto * 0.5f, y1 = y + alto * 0.5f;
+        glm::vec3 n(normalX, 0, 0), a(x, y0, z0), b(x, y1, z0), c(x, y1, z1), d(x, y0, z1);
+        agregaVerticeTifo(a, n, glm::vec2(0, 0)); agregaVerticeTifo(b, n, glm::vec2(0, 1)); agregaVerticeTifo(c, n, glm::vec2(1, 1));
+        agregaVerticeTifo(a, n, glm::vec2(0, 0)); agregaVerticeTifo(c, n, glm::vec2(1, 1)); agregaVerticeTifo(d, n, glm::vec2(1, 0));
+        };
+    agregaPlanoTifo(-38.20f, 14.5f, 0.0f, 8.0f, 8.0f, 1.0f);
+    agregaPlanoTifo(38.20f, 14.5f, 0.0f, 12.0f, 9.0f, -1.0f);
+    glGenVertexArrays(1, &tifoVao); glGenBuffers(1, &tifoVbo); glBindVertexArray(tifoVao); glBindBuffer(GL_ARRAY_BUFFER, tifoVbo);
+    glBufferData(GL_ARRAY_BUFFER, verticesTifo.size() * sizeof(float), verticesTifo.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0); glEnableVertexAttribArray(0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
+    glBindVertexArray(cuboVao);
     GLuint programaModelos = glCreateProgram(); GLuint modeloVS = glCreateShader(GL_VERTEX_SHADER), modeloFS = glCreateShader(GL_FRAGMENT_SHADER);
     std::string vertexModelo = "#version 330 core\nlayout(location=0) in vec3 p; layout(location=1) in vec3 n; layout(location=2) in vec2 uv; uniform mat4 model,view,projection; out vec3 world; out vec3 normalWorld; out vec2 texCoord; void main(){ vec4 wp=model*vec4(p,1.0); world=wp.xyz; normalWorld=mat3(transpose(inverse(model)))*n; texCoord=uv; gl_Position=projection*view*wp; }";
     std::string fragmentModelo = R"GLSL(#version 330 core
@@ -708,6 +882,17 @@ void main() {
     vec3 base = hasTexture == 1 ? texture(diffuseTexture, texCoord).rgb : materialColor;
     if (teamColorable == 1) base = teamColor;
     else if (hasTexture == 0) base = texturaArquitectura(base);
+    // Aplicar el acabado directamente a cualquier material verde del modelo
+    // del estadio: ese es el césped que se ve en la captura.
+    float mascaraVerde = smoothstep(0.025, 0.12, base.g)
+                       * (1.0 - smoothstep(0.10, 0.36, base.r))
+                       * (1.0 - smoothstep(0.08, 0.30, base.b))
+                       * smoothstep(1.08, 1.35, base.g / (base.r + 0.005))
+                       * smoothstep(1.08, 1.35, base.g / (base.b + 0.005));
+    float franjaCorte = mod(floor((world.z + 34.0) / 6.8), 2.0);
+    float fibraCesped = sin(world.x * 10.0 + world.z * 1.8 + sin(world.z * 0.65) * 2.0);
+    vec3 albedoCesped = base * mix(0.62, 1.0, franjaCorte) * (0.93 + 0.07 * fibraCesped);
+    base = mix(base, albedoCesped, mascaraVerde);
     vec3 normal = normalize(normalWorld);
     float illumination = lamps == 1 ? 0.24 : 0.20;
     if (lamps == 1) for (int i = 0; i < 4; ++i) {
@@ -768,7 +953,8 @@ void main() {
     instancia(0, posicionAutobus, 14, rumboAutobus);
     instancia(2, glm::vec3(0, 7, -40), 1.5f);
     instancia(3, glm::vec3(-62, 14, 0), 11, 90);
-    instancia(4, glm::vec3(-30, 0, -24), 2.6f);
+    // Se retira el carrito de emergencias de la valla lateral para dejar un pasillo libre.
+    instancia(4, glm::vec3(-30, 0, -27.0f), 2.6f);
     instancia(5, glm::vec3(0, 0, 0), 210);
     instancia(6, glm::vec3(10, 0, -26), 8);
     instancia(7, glm::vec3(10, 1.0f, -26), 3.5f);
@@ -837,12 +1023,21 @@ void main() {
             if (teclas[GLFW_KEY_D]) jugador += derecha * dt * velocidadJugador;
         }
         jugador.x = glm::clamp(jugador.x, -48.0f, 48.0f); jugador.z = glm::clamp(jugador.z, -31.0f, 31.0f);
-        if (animando) { tiempoAnimacion += dt; if (tiempoAnimacion >= 4.2f) { tiempoAnimacion = 4.2f; animando = false; jugadaTerminada = true; golesLocal = (golesLocal + 1) % 100; } }
+        if (animando) {
+            tiempoAnimacion += dt;
+            // El marcador cambia justo cuando el balon cruza el plano de gol.
+            if (!marcadorJugadaActualizado && tiempoAnimacion >= 5.22f) {
+                golesLocal = (golesLocal + 1) % 100;
+                marcadorJugadaActualizado = true;
+                std::cout << "GOL. Marcador local: " << golesLocal << " - visitante: " << golesVisita << std::endl;
+            }
+            if (tiempoAnimacion >= 6.5f) { tiempoAnimacion = 6.5f; animando = false; jugadaTerminada = true; }
+        }
         glm::vec3 posCam, objetivo;
         if (primeraPersona) { posCam = jugador + glm::vec3(0, 1.7f, 0); float pitch = glm::radians(anguloMouseY); glm::vec3 f = glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch))); objetivo = posCam + f; }
         else if (camaraLibre) { posCam = posicionCamaraLibre; float pitch = glm::radians(anguloMouseY); glm::vec3 f = glm::normalize(glm::vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch))); objetivo = posCam + f; }
         else {
-            glm::vec3 centroCamaraJugada = (animando || jugadaTerminada) ? glm::mix(inicioJugada, objetivoJugada, glm::clamp(tiempoAnimacion / 3.2f, 0.0f, 1.0f)) : jugador;
+            glm::vec3 centroCamaraJugada = (animando || jugadaTerminada) ? glm::mix(inicioJugada, objetivoJugada, glm::clamp(tiempoAnimacion / 5.8f, 0.0f, 1.0f)) : jugador;
             objetivo = (camaraAutobus ? posicionAutobus : centroCamaraJugada) + glm::vec3(0, 2.0f, 0);
             float pitch = glm::radians(glm::clamp(anguloMouseY, 10.0f, 80.0f));
             posCam = objetivo - frente * (zoomCamara * cos(pitch)) + glm::vec3(0, zoomCamara * sin(pitch), 0);
@@ -851,17 +1046,64 @@ void main() {
         glm::mat4 proy = glm::perspective(glm::radians(campoVision), (float)ww / hh, 0.1f, 520.0f);
         glViewport(0, 0, ww, hh); glClearColor(0.015f, 0.035f, 0.08f, 1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); glUseProgram(programa); cargarSpots(programa);
         glUniformMatrix4fv(locV, 1, GL_FALSE, glm::value_ptr(vista)); glUniformMatrix4fv(locP, 1, GL_FALSE, glm::value_ptr(proy)); glUniform1i(locLamps, reflectores ? 1 : 0); glUniform1i(locUI, 0);
-        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, texturaCesped);
-        glUniformMatrix4fv(locM, 1, GL_FALSE, glm::value_ptr(glm::mat4(1))); glUniform3f(locColor, 1, 1, 1); glUniform1i(locField, 1); glBindVertexArray(vao); glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(vertices.size() / 6));
-        glUniform1i(locField, 0); glBindVertexArray(cuboVao);
+        glBindVertexArray(cuboVao);
         for (const Caja& c : cajas) { glm::mat4 m = transformacion(c.centro, c.escala); glUniformMatrix4fv(locM, 1, GL_FALSE, glm::value_ptr(m)); glUniform3fv(locColor, 1, glm::value_ptr(c.color)); glDrawArrays(GL_TRIANGLES, 0, 36); }
         glUseProgram(programaModelos); cargarSpots(programaModelos);
-        for (const Instancia& item : instancias) modelos[item.modelo].dibujar(programaModelos, vista, proy, item.posicion, item.tamano, item.rotacion, reflectores, item.inclinacion);
+        for (const Instancia& item : instancias) {
+            Instancia instanciaAnimada = item;
+            // Simular el latigazo de la red cuando el balon pega dentro del arco.
+            bool esPorteriaObjetivo = item.modelo == 11 && item.posicion.x * objetivoJugada.x > 0.0f;
+            float desdeImpacto = tiempoAnimacion - 5.22f;
+            if ((animando || jugadaTerminada) && esPorteriaObjetivo && desdeImpacto >= 0.0f && desdeImpacto < 1.0f) {
+                float vibracion = std::sin(desdeImpacto * 31.0f) * std::exp(-desdeImpacto * 5.0f);
+                instanciaAnimada.posicion.x += direccionTiro.x * 0.35f * vibracion;
+                instanciaAnimada.rotacion += 2.2f * vibracion;
+                instanciaAnimada.inclinacion += 1.5f * vibracion;
+            }
+            modelos[instanciaAnimada.modelo].dibujar(programaModelos, vista, proy, instanciaAnimada.posicion,
+                instanciaAnimada.tamano, instanciaAnimada.rotacion, reflectores, instanciaAnimada.inclinacion);
+        }
         glUseProgram(programa);
+        // Dibujar la cancha texturizada al final del escenario para que el
+        // modelo del estadio no la cubra; las lineas blancas conservan su color.
+        cargarSpots(programa);
+        glUniformMatrix4fv(locV, 1, GL_FALSE, glm::value_ptr(vista));
+        glUniformMatrix4fv(locP, 1, GL_FALSE, glm::value_ptr(proy));
+        glUniform1i(locLamps, reflectores ? 1 : 0); glUniform1i(locUI, 0);
+        glActiveTexture(GL_TEXTURE0); glBindTexture(GL_TEXTURE_2D, texturaCesped);
+        glUniformMatrix4fv(locM, 1, GL_FALSE, glm::value_ptr(glm::mat4(1)));
+        glUniform3f(locColor, 1, 1, 1); glUniform1i(locField, 1);
+        glBindVertexArray(vao); glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(vertices.size() / 6));
+        glUniform1i(locField, 0); glBindVertexArray(cuboVao);
         glUniformMatrix4fv(locV, 1, GL_FALSE, glm::value_ptr(vista)); glUniformMatrix4fv(locP, 1, GL_FALSE, glm::value_ptr(proy)); glUniform1i(locLamps, reflectores ? 1 : 0);
         glBindVertexArray(cuboVao);
         auto dibujaParte = [&](glm::vec3 pos, glm::vec3 escala, glm::vec3 color, glm::mat4 base) { glm::mat4 m = base; m = glm::translate(m, pos); m = glm::scale(m, escala); glUniformMatrix4fv(locM, 1, GL_FALSE, glm::value_ptr(m)); glUniform3fv(locColor, 1, glm::value_ptr(color)); glDrawArrays(GL_TRIANGLES, 0, 36); };
+        // Paneles publicitarios a ras del perimetro, sin cerrar accesos a las porterias
+        // ni ocupar el hueco central de las bancas. Los conos quedan en el area de practica.
+        glUseProgram(programa); glUniform1i(locField, 0); glBindVertexArray(cuboVao);
+        for (const Caja& panel : vallasPublicidad) dibujaParte(panel.centro, panel.escala, panel.color, glm::mat4(1.0f));
+        for (const Caja& panio : fondosTifo) dibujaParte(panio.centro, panio.escala, panio.color, glm::mat4(1.0f));
+        glUniform1i(locField, 2); glUniformMatrix4fv(locM, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
+        glBindVertexArray(conosVao); glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(geometriaConos.size() / 6));
+        glUniform1i(locField, 0); glBindVertexArray(cuboVao);
         glUseProgram(programaModelos);
+        // Colocar los escudos de ambos equipos en sus respectivas cabeceras.
+        cargarSpots(programaModelos);
+        GLint locTifoModel = glGetUniformLocation(programaModelos, "model");
+        GLint locTifoView = glGetUniformLocation(programaModelos, "view");
+        GLint locTifoProjection = glGetUniformLocation(programaModelos, "projection");
+        GLint locTifoTexture = glGetUniformLocation(programaModelos, "diffuseTexture");
+        GLint locTifoHasTexture = glGetUniformLocation(programaModelos, "hasTexture");
+        GLint locTifoColor = glGetUniformLocation(programaModelos, "materialColor");
+        GLint locTifoTeamColorable = glGetUniformLocation(programaModelos, "teamColorable");
+        glUniformMatrix4fv(locTifoModel, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
+        glUniformMatrix4fv(locTifoView, 1, GL_FALSE, glm::value_ptr(vista));
+        glUniformMatrix4fv(locTifoProjection, 1, GL_FALSE, glm::value_ptr(proy));
+        glUniform1i(locTifoTexture, 0); glUniform1i(locTifoHasTexture, 1); glUniform1i(locTifoTeamColorable, 0);
+        glUniform3f(locTifoColor, 1.0f, 1.0f, 1.0f); glActiveTexture(GL_TEXTURE0); glBindVertexArray(tifoVao);
+        if (texturaTifoCruz) { glBindTexture(GL_TEXTURE_2D, texturaTifoCruz); glDrawArrays(GL_TRIANGLES, 0, 6); }
+        if (texturaTifoPumas) { glBindTexture(GL_TEXTURE_2D, texturaTifoPumas); glDrawArrays(GL_TRIANGLES, 6, 6); }
+        glBindVertexArray(cuboVao);
         const ModeloOBJ& marcoJugador = modelos[9];
         const float escalaJugador = 3.2f / marcoJugador.extensionMaximaModelo();
         glm::vec3 centroJugador = marcoJugador.centroModelo();
@@ -932,17 +1174,38 @@ void main() {
         glm::mat4 tobilloIzqM = giroArticulacion(tobilloIzqJugador, tobilloIzq, glm::vec3(0, 0, 1));
         auto dibujaJugadorCorriendo = [&](const glm::mat4& raiz, const glm::vec3& uniforme, GLuint texturaUniforme, float fase, float impulso) {
             modelos[CUERPO_JUGADOR].dibujarConMatriz(programaModelos, vista, proy, raiz, reflectores, uniforme, true, texturaUniforme);
-            float paso = std::sin(tiempoAnimacion * 10.0f + fase) * 25.0f;
+            const int cantidadPoses = (int)(sizeof(keyframesCarrera) / sizeof(keyframesCarrera[0]));
+            float faseCiclo = std::fmod(tiempoAnimacion * 1.35f + fase / (2.0f * PI), 1.0f);
+            if (faseCiclo < 0.0f) faseCiclo += 1.0f;
+            float muestra = faseCiclo * cantidadPoses;
+            int tramo = (int)std::floor(muestra) % cantidadPoses;
+            float u = muestra - std::floor(muestra);
+            auto catmullRom = [](float a, float b, float c, float d, float t) {
+                float t2 = t * t, t3 = t2 * t;
+                return 0.5f * ((2.0f * b) + (-a + c) * t +
+                    (2.0f * a - 5.0f * b + 4.0f * c - d) * t2 +
+                    (-a + 3.0f * b - 3.0f * c + d) * t3);
+                };
+            auto poseCarrera = [&](float KeyframeCarrera::* canal) {
+                int i0 = (tramo + cantidadPoses - 1) % cantidadPoses;
+                int i1 = tramo;
+                int i2 = (tramo + 1) % cantidadPoses;
+                int i3 = (tramo + 2) % cantidadPoses;
+                return catmullRom(keyframesCarrera[i0].*canal, keyframesCarrera[i1].*canal,
+                    keyframesCarrera[i2].*canal, keyframesCarrera[i3].*canal, u);
+                };
+            float paso = poseCarrera(&KeyframeCarrera::paso);
+            float rodillaD = glm::clamp(poseCarrera(&KeyframeCarrera::rodillaDer), 0.0f, 30.0f);
+            float rodillaI = glm::clamp(poseCarrera(&KeyframeCarrera::rodillaIzq), 0.0f, 30.0f);
+            float brazosCarrera = glm::clamp(poseCarrera(&KeyframeCarrera::brazos), -12.0f, 12.0f);
             glm::mat4 caderaD = giroArticulacion(caderaJugadorDer, -paso - impulso, glm::vec3(1, 0, 0));
             glm::mat4 caderaI = giroArticulacion(caderaJugadorIzq, paso, glm::vec3(1, 0, 0));
-            float rodillaD = glm::max(0.0f, std::sin(tiempoAnimacion * 10.0f + fase + 1.3f)) * 30.0f;
-            float rodillaI = glm::max(0.0f, std::sin(tiempoAnimacion * 10.0f + fase + PI + 1.3f)) * 30.0f;
             glm::mat4 rodillaDerM = giroArticulacion(rodillaJugadorDer, rodillaD, glm::vec3(1, 0, 0));
             glm::mat4 rodillaIzqM = giroArticulacion(rodillaJugadorIzq, rodillaI, glm::vec3(1, 0, 0));
-            glm::mat4 brazoD = giroArticulacion(hombroDer, paso * 0.55f, glm::vec3(1, 0, 0));
-            glm::mat4 brazoI = giroArticulacion(hombroIzq, -paso * 0.55f, glm::vec3(1, 0, 0));
-            glm::mat4 codoD = giroArticulacion(codoDer, -18.0f, glm::vec3(1, 0, 0));
-            glm::mat4 codoI = giroArticulacion(codoIzq, -18.0f, glm::vec3(1, 0, 0));
+            glm::mat4 brazoD = giroArticulacion(hombroDer, brazosCarrera, glm::vec3(1, 0, 0));
+            glm::mat4 brazoI = giroArticulacion(hombroIzq, -brazosCarrera, glm::vec3(1, 0, 0));
+            glm::mat4 codoD = giroArticulacion(codoDer, -24.0f, glm::vec3(1, 0, 0));
+            glm::mat4 codoI = giroArticulacion(codoIzq, -24.0f, glm::vec3(1, 0, 0));
             modelos[BRAZO_SUP_DER].dibujarConMatriz(programaModelos, vista, proy, raiz * brazoD, reflectores, uniforme, true, texturaUniforme);
             modelos[BRAZO_INF_DER].dibujarConMatriz(programaModelos, vista, proy, raiz * brazoD * codoD, reflectores, uniforme, true, texturaUniforme);
             modelos[BRAZO_SUP_IZQ].dibujarConMatriz(programaModelos, vista, proy, raiz * brazoI, reflectores, uniforme, true, texturaUniforme);
@@ -953,6 +1216,26 @@ void main() {
             modelos[MUSLO_IZQ].dibujarConMatriz(programaModelos, vista, proy, raiz * caderaI, reflectores, uniforme, true, texturaUniforme);
             modelos[PANTORRILLA_IZQ].dibujarConMatriz(programaModelos, vista, proy, raiz * caderaI * rodillaIzqM, reflectores, uniforme, true, texturaUniforme);
             modelos[PIE_IZQ].dibujarConMatriz(programaModelos, vista, proy, raiz * caderaI * rodillaIzqM, reflectores, uniforme, true, texturaUniforme);
+            };
+        auto dibujaPorteroAtajada = [&](const glm::mat4& raiz, const glm::vec3& uniforme, GLuint texturaUniforme, float ladoLocal, float intensidad) {
+            // El portero se mantiene de pie, con una inclinacion corta y los brazos extendidos.
+            glm::mat4 torso = raiz * giroArticulacion(glm::vec3(-1.25f, 1.75f, 0.0f), ladoLocal * 9.0f * intensidad, glm::vec3(0, 0, 1));
+            modelos[CUERPO_JUGADOR].dibujarConMatriz(programaModelos, vista, proy, torso, reflectores, uniforme, true, texturaUniforme);
+            glm::mat4 brazoD = giroArticulacion(hombroDer, ladoLocal * 58.0f * intensidad, glm::vec3(0, 0, 1));
+            glm::mat4 brazoI = giroArticulacion(hombroIzq, ladoLocal * 58.0f * intensidad, glm::vec3(0, 0, 1));
+            glm::mat4 codoD = giroArticulacion(codoDer, -12.0f * intensidad, glm::vec3(0, 0, 1));
+            glm::mat4 codoI = giroArticulacion(codoIzq, 12.0f * intensidad, glm::vec3(0, 0, 1));
+            modelos[BRAZO_SUP_DER].dibujarConMatriz(programaModelos, vista, proy, torso * brazoD, reflectores, uniforme, true, texturaUniforme);
+            modelos[BRAZO_INF_DER].dibujarConMatriz(programaModelos, vista, proy, torso * brazoD * codoD, reflectores, uniforme, true, texturaUniforme);
+            modelos[BRAZO_SUP_IZQ].dibujarConMatriz(programaModelos, vista, proy, torso * brazoI, reflectores, uniforme, true, texturaUniforme);
+            modelos[BRAZO_INF_IZQ].dibujarConMatriz(programaModelos, vista, proy, torso * brazoI * codoI, reflectores, uniforme, true, texturaUniforme);
+            // Piernas rectas y pies sobre el suelo: la atajada no convierte al portero en una zambullida.
+            modelos[MUSLO_DER].dibujarConMatriz(programaModelos, vista, proy, raiz, reflectores, uniforme, true, texturaUniforme);
+            modelos[PANTORRILLA_DER].dibujarConMatriz(programaModelos, vista, proy, raiz, reflectores, uniforme, true, texturaUniforme);
+            modelos[PIE_DER].dibujarConMatriz(programaModelos, vista, proy, raiz, reflectores, uniforme, true, texturaUniforme);
+            modelos[MUSLO_IZQ].dibujarConMatriz(programaModelos, vista, proy, raiz, reflectores, uniforme, true, texturaUniforme);
+            modelos[PANTORRILLA_IZQ].dibujarConMatriz(programaModelos, vista, proy, raiz, reflectores, uniforme, true, texturaUniforme);
+            modelos[PIE_IZQ].dibujarConMatriz(programaModelos, vista, proy, raiz, reflectores, uniforme, true, texturaUniforme);
             };
         // Rig adicional para suplentes sentados: muslos horizontales y pantorrillas hacia abajo.
         auto dibujaJugadorSentado = [&](const glm::mat4& raiz, const glm::vec3& uniforme, GLuint texturaUniforme, float anguloCadera) {
@@ -1002,51 +1285,70 @@ void main() {
         float rumboAtaque = glm::degrees(std::atan2(direccionTiro.x, direccionTiro.z));
         glm::vec3 inicioCompaA(equipoRojo[8].x, 0, equipoRojo[8].y), inicioCompaB(equipoRojo[9].x, 0, equipoRojo[9].y);
         glm::vec3 recibeA = inicioJugada + direccionTiro * (distanciaJugada * 0.20f) + lateralJugada * (8.0f);
-        glm::vec3 recibeB = inicioJugada + direccionTiro * (distanciaJugada * 0.48f) + lateralJugada * (-7.0f);
+        glm::vec3 recibeB = inicioJugada + direccionTiro * (distanciaJugada * 0.48f) + lateralJugada * (-4.5f);
         glm::vec3 remate = inicioJugada + direccionTiro * (distanciaJugada * 0.86f);
-        glm::vec3 porteroReacciona = objetivoJugada - direccionTiro * 1.2f + lateralJugada * 2.8f;
+        // Se queda dentro de la boca del arco y da un paso corto hacia la trayectoria del balon.
+        glm::vec3 porteroReacciona = objetivoJugada - direccionTiro * 1.7f - lateralJugada * 1.0f;
         for (size_t i = 0;i < 10;++i) {
-            glm::vec3 posicion(equipoRojo[i].x, 0, equipoRojo[i].y); bool corre = false; float fase = 0.0f, impulso = 0.0f;
+            glm::vec3 posicion(equipoRojo[i].x, 0, equipoRojo[i].y); bool corre = false, porteroAtaja = false; float fase = 0.0f, impulso = 0.0f, intensidadAtajada = 0.0f;
             if (escenaJugada && (i == 5 || i == 6 || i == 7)) {
                 glm::vec3 inicioApoyo(equipoRojo[i].x, 0, equipoRojo[i].y);
-                float avanceApoyo = (i == 6 ? 7.0f : 5.0f);
-                float carril = (i == 5 ? -4.0f : (i == 7 ? 4.0f : 0.0f));
+                float avanceApoyo = (i == 6 ? 5.0f : 3.5f);
+                float carril = (i == 5 ? -2.5f : (i == 7 ? 2.5f : 0.0f));
                 glm::vec3 destinoApoyo = inicioApoyo + direccionTiro * avanceApoyo + lateralJugada * carril;
-                posicion = glm::mix(inicioApoyo, destinoApoyo, progresoJugada(0.35f, 1.75f, tiempoJugada));
-                corre = tiempoJugada > 0.35f && tiempoJugada < 1.75f; fase = (i == 6 ? 0.0f : PI);
+                posicion = glm::mix(inicioApoyo, destinoApoyo, progresoJugada(0.75f, 3.0f, tiempoJugada));
+                corre = tiempoJugada > 0.75f && tiempoJugada < 3.0f; fase = (i == 6 ? 0.0f : PI);
             }
             if (escenaJugada && i == 8) {
-                posicion = glm::mix(inicioCompaA, recibeA, progresoJugada(0.05f, 0.82f, tiempoJugada));
-                if (tiempoJugada > 1.48f) posicion = glm::mix(recibeA, recibeA + direccionTiro * 2.5f, progresoJugada(1.48f, 2.20f, tiempoJugada));
-                corre = tiempoJugada < 0.82f || (tiempoJugada > 1.48f && tiempoJugada < 2.20f); fase = 0.0f;
+                posicion = glm::mix(inicioCompaA, recibeA, progresoJugada(0.20f, 1.20f, tiempoJugada));
+                if (tiempoJugada > 1.55f) posicion = glm::mix(recibeA, recibeA + direccionTiro * 2.0f, progresoJugada(1.55f, 2.65f, tiempoJugada));
+                corre = (tiempoJugada > 0.20f && tiempoJugada < 1.20f) || (tiempoJugada > 1.55f && tiempoJugada < 2.65f); fase = 0.0f;
+                impulso = 38.0f * progresoJugada(1.48f, 1.58f, tiempoJugada) * (1.0f - progresoJugada(1.58f, 1.92f, tiempoJugada));
             }
             if (escenaJugada && i == 9) {
-                posicion = glm::mix(inicioCompaB, recibeB, progresoJugada(0.62f, 1.42f, tiempoJugada));
-                if (tiempoJugada > 1.50f) posicion = glm::mix(recibeB, remate, progresoJugada(1.50f, 2.32f, tiempoJugada));
-                corre = (tiempoJugada > 0.62f && tiempoJugada < 1.42f) || (tiempoJugada > 1.50f && tiempoJugada < 2.32f); fase = PI;
-                impulso = 42.0f * progresoJugada(2.26f, 2.34f, tiempoJugada) * (1.0f - progresoJugada(2.34f, 2.56f, tiempoJugada));
+                posicion = glm::mix(inicioCompaB, recibeB, progresoJugada(0.75f, 2.60f, tiempoJugada));
+                if (tiempoJugada > 2.80f) posicion = glm::mix(recibeB, remate, progresoJugada(2.80f, 4.65f, tiempoJugada));
+                corre = (tiempoJugada > 0.75f && tiempoJugada < 2.60f) || (tiempoJugada > 2.80f && tiempoJugada < 4.65f); fase = PI;
+                impulso = 42.0f * progresoJugada(4.62f, 4.78f, tiempoJugada) * (1.0f - progresoJugada(4.78f, 5.08f, tiempoJugada));
             }
             if (escenaJugada && objetivoJugada.x > 0.0f && i == 0) {
-                posicion = glm::mix(posicion, porteroReacciona, progresoJugada(2.35f, 3.25f, tiempoJugada));
-                corre = tiempoJugada > 2.35f && tiempoJugada < 3.25f; fase = PI * 0.5f;
+                float avanceAtajada = progresoJugada(4.10f, 4.78f, tiempoJugada);
+                float recuperacion = progresoJugada(5.35f, 6.05f, tiempoJugada);
+                posicion = glm::mix(posicion, porteroReacciona, 0.78f * avanceAtajada * (1.0f - recuperacion));
+                intensidadAtajada = progresoJugada(4.12f, 4.82f, tiempoJugada) * (1.0f - progresoJugada(5.35f, 6.00f, tiempoJugada));
+                porteroAtaja = tiempoJugada >= 4.10f && tiempoJugada < 6.05f;
+                corre = porteroAtaja; fase = PI * 0.5f;
             }
-            glm::mat4 raiz = crearRaizJugador(posicion, (escenaJugada && corre) ? rumboAtaque : -90.0f);
-            if (corre) dibujaJugadorCorriendo(raiz, colorAtlas, texturaAtlas, fase, impulso); else dibujaJugadorCompleto(raiz, colorAtlas, texturaAtlas);
+            float orientacion = (escenaJugada && (corre || i == 8 || i == 9)) ? rumboAtaque : -90.0f;
+            if (porteroAtaja) orientacion = rumboAtaque + 180.0f;
+            glm::mat4 raiz = crearRaizJugador(posicion, orientacion);
+            if (porteroAtaja) dibujaPorteroAtajada(raiz, colorAtlas, texturaAtlas, 1.0f, intensidadAtajada);
+            else if (corre) dibujaJugadorCorriendo(raiz, colorAtlas, texturaAtlas, fase, impulso);
+            else dibujaJugadorCompleto(raiz, colorAtlas, texturaAtlas);
         }
         for (size_t i = 0;i < 11;++i) {
-            glm::vec3 posicion(equipoBlanco[i].x, 0, equipoBlanco[i].y); bool corre = false;
+            glm::vec3 posicion(equipoBlanco[i].x, 0, equipoBlanco[i].y); bool corre = false, porteroAtaja = false; float intensidadAtajada = 0.0f;
             if (escenaJugada && (i == 2 || i == 3 || i == 4)) {
                 glm::vec3 inicioDefensa(equipoBlanco[i].x, 0, equipoBlanco[i].y);
-                glm::vec3 objetivoDefensa = inicioDefensa + direccionTiro * 4.0f + lateralJugada * ((i == 2 ? -3.0f : (i == 4 ? 3.0f : 0.0f)));
-                posicion = glm::mix(inicioDefensa, objetivoDefensa, progresoJugada(0.55f, 2.0f, tiempoJugada));
-                corre = tiempoJugada > 0.55f && tiempoJugada < 2.0f;
+                float coberturaLateral = (i == 2 ? -2.0f : (i == 3 ? -3.5f : 2.0f));
+                glm::vec3 objetivoDefensa = inicioDefensa + direccionTiro * 2.5f + lateralJugada * coberturaLateral;
+                posicion = glm::mix(inicioDefensa, objetivoDefensa, progresoJugada(1.05f, 3.35f, tiempoJugada));
+                corre = tiempoJugada > 1.05f && tiempoJugada < 3.35f;
             }
             if (escenaJugada && objetivoJugada.x < 0.0f && i == 0) {
-                posicion = glm::mix(posicion, porteroReacciona, progresoJugada(2.35f, 3.25f, tiempoJugada));
-                corre = tiempoJugada > 2.35f && tiempoJugada < 3.25f;
+                float avanceAtajada = progresoJugada(4.10f, 4.78f, tiempoJugada);
+                float recuperacion = progresoJugada(5.35f, 6.05f, tiempoJugada);
+                posicion = glm::mix(posicion, porteroReacciona, 0.78f * avanceAtajada * (1.0f - recuperacion));
+                intensidadAtajada = progresoJugada(4.12f, 4.82f, tiempoJugada) * (1.0f - progresoJugada(5.35f, 6.00f, tiempoJugada));
+                porteroAtaja = tiempoJugada >= 4.10f && tiempoJugada < 6.05f;
+                corre = porteroAtaja;
             }
-            glm::mat4 raiz = crearRaizJugador(posicion, corre ? rumboAtaque : 90.0f);
-            if (corre) dibujaJugadorCorriendo(raiz, colorCruzAzul, texturaCruzAzul, PI * 0.5f, 0.0f); else dibujaJugadorCompleto(raiz, colorCruzAzul, texturaCruzAzul);
+            float orientacion = (corre || (escenaJugada && i == 0)) ? rumboAtaque : 90.0f;
+            if (porteroAtaja) orientacion = rumboAtaque + 180.0f;
+            glm::mat4 raiz = crearRaizJugador(posicion, orientacion);
+            if (porteroAtaja) dibujaPorteroAtajada(raiz, colorCruzAzul, texturaCruzAzul, 1.0f, intensidadAtajada);
+            else if (corre) dibujaJugadorCorriendo(raiz, colorCruzAzul, texturaCruzAzul, PI * 0.5f, 0.0f);
+            else dibujaJugadorCompleto(raiz, colorCruzAzul, texturaCruzAzul);
         }
         // Los cuatro suplentes quedan dentro del largo util de cada banca.
         const float asientosX[4] = { -2.4f,-0.8f,0.8f,2.4f };
@@ -1067,15 +1369,15 @@ void main() {
         // Marcador de siete segmentos: G suma local, H suma visita, R reinicia.
         const int segmentos[10][7] = { {1,1,1,1,1,1,0},{0,1,1,0,0,0,0},{1,1,0,1,1,0,1},{1,1,1,1,0,0,1},{0,1,1,0,0,1,1},{1,0,1,1,0,1,1},{1,0,1,1,1,1,1},{1,1,1,0,0,0,0},{1,1,1,1,1,1,1},{1,1,1,1,0,1,1} };
         auto digito = [&](int valor, float z) {
-            const float xx[7] = { 0.0f,0.62f,0.62f,0.0f,-0.62f,-0.62f,0.0f };
-            const float yy[7] = { 0.72f,0.36f,-0.36f,-0.72f,-0.36f,0.36f,0.0f };
+            const float xx[7] = { 0.0f,0.78f,0.78f,0.0f,-0.78f,-0.78f,0.0f };
+            const float yy[7] = { 1.0f,0.5f,-0.5f,-1.0f,-0.5f,0.5f,0.0f };
             for (int i = 0;i < 7;++i) if (segmentos[valor % 10][i]) {
                 bool horizontal = (i == 0 || i == 3 || i == 6);
-                dibujaParte(glm::vec3(-61.65f, 20.1f + yy[i], z + xx[i]), horizontal ? glm::vec3(0.10f, 0.12f, 0.88f) : glm::vec3(0.10f, 0.62f, 0.12f), glm::vec3(0.2f, 0.95f, 0.95f), glm::mat4(1));
+                dibujaParte(glm::vec3(-61.15f, 18.0f + yy[i], z + xx[i]), horizontal ? glm::vec3(0.18f, 0.18f, 1.40f) : glm::vec3(0.18f, 0.90f, 0.18f), glm::vec3(1.0f, 0.16f, 0.06f), glm::mat4(1));
             }
             };
         digito(golesLocal, -2.6f); digito(golesVisita, 2.6f);
-        dibujaParte(glm::vec3(-61.65f, 20.1f, 0), glm::vec3(0.10f, 0.16f, 0.12f), AMARILLO, glm::mat4(1));
+        dibujaParte(glm::vec3(-61.15f, 18.0f, 0), glm::vec3(0.18f, 0.20f, 0.18f), AMARILLO, glm::mat4(1));
         float avance = keyframesBalon[0].avance, altura = keyframesBalon[0].altura, lateral = keyframesBalon[0].lateral;
         if (animando || jugadaTerminada) for (size_t k = 0;k + 1 < sizeof(keyframesBalon) / sizeof(keyframesBalon[0]);++k) if (tiempoAnimacion >= keyframesBalon[k].tiempo && tiempoAnimacion <= keyframesBalon[k + 1].tiempo) {
             float u = (tiempoAnimacion - keyframesBalon[k].tiempo) / (keyframesBalon[k + 1].tiempo - keyframesBalon[k].tiempo);
@@ -1087,8 +1389,71 @@ void main() {
         glm::vec3 origenBalon = (animando || jugadaTerminada) ? inicioJugada : jugador;
         glm::vec3 balon = origenBalon + direccionTiro * (avance * distanciaJugada) + glm::vec3(0, altura, 0) + lateralJugada * lateral;
         float rumboBalon = glm::degrees(std::atan2(direccionTiro.x, direccionTiro.z));
-        if (modelos[1].listo()) { glUseProgram(programaModelos); modelos[1].dibujar(programaModelos, vista, proy, balon, 0.48f, tiempoAnimacion * 900.0f + rumboBalon, reflectores); glUseProgram(programa); glBindVertexArray(cuboVao); }
+        float giroBalon = tiempoAnimacion < 5.22f ? tiempoAnimacion * 900.0f : 4698.0f + 90.0f * (1.0f - std::exp(-(tiempoAnimacion - 5.22f) * 5.0f));
+        if (modelos[1].listo()) { glUseProgram(programaModelos); modelos[1].dibujar(programaModelos, vista, proy, balon, 0.48f, giroBalon + rumboBalon, reflectores); glUseProgram(programa); glBindVertexArray(cuboVao); }
         else dibujaParte(balon, glm::vec3(0.42f), glm::vec3(0.94f, 0.94f, 0.88f), glm::mat4(1));
+        // Fuegos artificiales lanzados desde tres puntos sobre las gradas.
+        // Cada ciclo dibuja una estela ascendente y una explosion esferica de chispas.
+        std::vector<float> verticesFuegos;
+        auto agregaVerticeFuego = [&](glm::vec3 p, glm::vec3 color) {
+            verticesFuegos.insert(verticesFuegos.end(), { p.x,p.y,p.z,color.r,color.g,color.b });
+            };
+        auto agregaRayoFuego = [&](glm::vec3 a, glm::vec3 b, glm::vec3 colorA, glm::vec3 colorB) {
+            agregaVerticeFuego(a, colorA); agregaVerticeFuego(b, colorB);
+            };
+        const glm::vec3 salidasFuegos[3] = {
+            glm::vec3(-39.0f, 30.0f, -25.0f), glm::vec3(0.0f, 32.0f, 0.0f), glm::vec3(39.0f, 30.0f, 25.0f)
+        };
+        const glm::vec3 coloresFuegos[3] = {
+            glm::vec3(1.0f,0.24f,0.06f), glm::vec3(0.10f,0.58f,1.0f), glm::vec3(0.84f,0.18f,1.0f)
+        };
+        const float tiempoFuegos = (float)glfwGetTime(), cicloFuegos = 6.0f, subidaFuego = 1.25f, duracionExplosion = 2.15f;
+        for (int f = 0; f < 3; ++f) {
+            float faseFuego = std::fmod(tiempoFuegos + f * 2.0f, cicloFuegos);
+            glm::vec3 origen = salidasFuegos[f], color = coloresFuegos[f];
+            glm::vec3 blancoCaliente = glm::mix(color, glm::vec3(1.0f, 0.96f, 0.78f), 0.62f);
+            glm::vec3 centroExplosion = origen + glm::vec3(0, 18.0f, 0);
+            if (faseFuego < subidaFuego) {
+                float u = faseFuego / subidaFuego;
+                float ascenso = u * (2.0f - u);
+                glm::vec3 punta = origen + glm::vec3(0, 18.0f * ascenso, 0);
+                agregaRayoFuego(punta, punta - glm::vec3(0, 2.3f, 0), blancoCaliente, color * 0.72f);
+                for (int chispa = 0; chispa < 4; ++chispa) {
+                    float angulo = faseFuego * 14.0f + chispa * (PI * 0.5f);
+                    glm::vec3 inicio = punta + glm::vec3(cos(angulo) * 0.18f, -0.35f * chispa, sin(angulo) * 0.18f);
+                    glm::vec3 fin = inicio + glm::vec3(cos(angulo) * 0.8f, -0.65f, sin(angulo) * 0.8f);
+                    agregaRayoFuego(inicio, fin, blancoCaliente, color * 0.45f);
+                }
+            }
+            else if (faseFuego < subidaFuego + duracionExplosion) {
+                float edad = faseFuego - subidaFuego;
+                float progreso = edad / duracionExplosion;
+                float radio = 12.0f * (1.0f - (1.0f - progreso) * (1.0f - progreso));
+                centroExplosion.y -= 2.5f * progreso * progreso;
+                glm::vec3 brillo = glm::mix(blancoCaliente, color, 0.35f + progreso * 0.35f);
+                for (int chispa = 0; chispa < 48; ++chispa) {
+                    float yDir = 1.0f - 2.0f * ((float)chispa + 0.5f) / 48.0f;
+                    float radioXZ = sqrtf(1.0f - yDir * yDir);
+                    float angulo = chispa * 2.399963f + f * 0.7f;
+                    glm::vec3 direccion(cos(angulo) * radioXZ, yDir, sin(angulo) * radioXZ);
+                    glm::vec3 punta = centroExplosion + direccion * radio;
+                    float largoCola = 0.45f + 1.25f * (1.0f - progreso);
+                    glm::vec3 cola = punta - direccion * largoCola;
+                    agregaRayoFuego(cola, punta, color * 0.68f, brillo);
+                }
+            }
+        }
+        if (!verticesFuegos.empty()) {
+            glUseProgram(programa); cargarSpots(programa);
+            glUniformMatrix4fv(locV, 1, GL_FALSE, glm::value_ptr(vista)); glUniformMatrix4fv(locP, 1, GL_FALSE, glm::value_ptr(proy));
+            glUniformMatrix4fv(locM, 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
+            glUniform1i(locField, 2); glUniform1i(locUI, 0); glUniform1i(locLamps, reflectores ? 1 : 0);
+            glBindBuffer(GL_ARRAY_BUFFER, fuegosVbo);
+            glBufferData(GL_ARRAY_BUFFER, verticesFuegos.size() * sizeof(float), verticesFuegos.data(), GL_DYNAMIC_DRAW);
+            glBindVertexArray(fuegosVao); glLineWidth(2.0f);
+            glDrawArrays(GL_LINES, 0, (GLsizei)(verticesFuegos.size() / 6));
+            glBindVertexArray(cuboVao); glUniform1i(locField, 0);
+        }
         // Marcador HUD fijo para que G/H siempre produzcan una respuesta visible.
         glUseProgram(programa); glDisable(GL_DEPTH_TEST);
         glm::mat4 vistaHUD(1.0f), proyeccionHUD = glm::ortho(0.0f, (float)ww, 0.0f, (float)hh, -100.0f, 100.0f);
@@ -1118,6 +1483,7 @@ void main() {
     }
     for (size_t i = 0;i < modelos.size();++i) modelos[i].liberar();
     glDeleteTextures(1, &texturaCesped); if (texturaAtlas) glDeleteTextures(1, &texturaAtlas); if (texturaCruzAzul) glDeleteTextures(1, &texturaCruzAzul);
-    glDeleteVertexArrays(1, &vao); glDeleteBuffers(1, &vbo); glDeleteVertexArrays(1, &cuboVao); glDeleteBuffers(1, &cuboVbo); glDeleteProgram(programa); glDeleteProgram(programaModelos);
+    if (texturaTifoCruz) glDeleteTextures(1, &texturaTifoCruz); if (texturaTifoPumas) glDeleteTextures(1, &texturaTifoPumas);
+    glDeleteVertexArrays(1, &vao); glDeleteBuffers(1, &vbo); glDeleteVertexArrays(1, &cuboVao); glDeleteBuffers(1, &cuboVbo); glDeleteVertexArrays(1, &conosVao); glDeleteBuffers(1, &conosVbo); glDeleteVertexArrays(1, &tifoVao); glDeleteBuffers(1, &tifoVbo); glDeleteVertexArrays(1, &fuegosVao); glDeleteBuffers(1, &fuegosVbo); glDeleteProgram(programa); glDeleteProgram(programaModelos);
     glfwDestroyWindow(window); glfwTerminate(); return 0;
 }
